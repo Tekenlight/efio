@@ -1,4 +1,4 @@
-# evio
+# efio
 ## Event driven file IO module ##
 Two assumptions leading to the existing design of buffered IO in unix are
 1. Disk access is several orders of magnitude slower than memory access milliseconds vs nano seconds.
