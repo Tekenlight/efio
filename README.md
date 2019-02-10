@@ -8,8 +8,8 @@ Two assumptions leading to the existing design of buffered IO in unix are
    **temporal locality.**
 
 Server programs may deal with either 
-a. incoming files from users (FTP, file upload etc.), or
-b. writing output files, logs, or reports that may be sent by any means to recipients. In both situations the principle of temporal locality does not hold. In fact it will be a waste of server memory to hold the pages from these files in cache.
+- incoming files from users (FTP, file upload etc.), or
+- writing output files, logs, or reports that may be sent by any means to recipients. In both situations the principle of temporal locality does not hold. In fact it will be a waste of server memory to hold the pages from these files in cache.
 
 Thus there is a need to develop a different solution suitable for file access by servers, which is asynchronous IO.
 
