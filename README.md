@@ -42,3 +42,5 @@ A caller is expected to open the file and pass the file descriptor to do any fur
 
 A closed fd can be reused/reallocated by the library for some other file in the future.
 
+The implementation is designed using non-blocking and lock-free techniques.
+
