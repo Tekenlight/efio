@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.2.0)
 
-project(evio)
+project(efio)
 
 set(CMAKE_C_STANDARD 11)
 #set(CMAKE_C_STANDARD 14)
