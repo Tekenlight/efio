@@ -1,5 +1,6 @@
 # efio
 ## Event driven file IO module ##
+
 Two assumptions leading to the existing design of buffered IO in unix are
 1. **Disk access is several orders of magnitude slower than memory access milliseconds vs nano seconds.**
    **Accessing data from processor’s L1 and L2 cache is faster still.**
@@ -26,11 +27,8 @@ At the same time, it is still benficial to switch context and resume later if th
 secondary storage to primary memory.
 
 This module aims to solve exactly the problem.
-The data access functions ef_read and ef_write will return or write the data immdeiately and synchronously if it is
-possible to do so with the available buffer. In case the data is not ready for read or buffer is not available for
-write, immediately the functions return error by setting errno to EAGAIN.
-The caller thread can now continue with other activities and wait for the availability of the file for operation
-at a later time.
+- The data access function ef_read will returnmmdeiately and synchronously if it is possible to do so with the available buffer. In case the data is not ready for read immediately, the function return error by setting errno to EAGAIN. The caller thread can now continue with other activities and wait for the availability of the file for operation at a later time.
+- ef_write on the other hand, is implemented in a complete non blocking way (much different from aio_write). All the written data is immediately copied to a buffer and transfered to the disk later, either if a pagefull of data is written or at regular intervals. The caller can continue to transfer data at CPU and memory speeds, while data transfer to disk happens asynchronously.
 
 The module can easily be integrated to an eventing library such as libev, through usage of global and thread safe
 queues. The eventing mechanism  is expected to implement a function pointer for signaling The event.
