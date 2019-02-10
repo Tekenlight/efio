@@ -1,0 +1,53 @@
+if (CMAKE_VERSION VERSION_LESS 2.8.9)
+    message(FATAL_ERROR "evio requires at least CMake version 2.8.9")
+endif()
+
+if (NOT evio_FIND_COMPONENTS)
+    set(evio_NOT_FOUND_MESSAGE "The evio package requires at least one component")
+    set(evio_FOUND False)
+    return()
+endif()
+
+set(_evio_FIND_PARTS_REQUIRED)
+if (evio_FIND_REQUIRED)
+    set(_evio_FIND_PARTS_REQUIRED REQUIRED)
+endif()
+set(_evio_FIND_PARTS_QUIET)
+if (evio_FIND_QUIETLY)
+    set(_evio_FIND_PARTS_QUIET QUIET)
+endif()
+
+get_filename_component(_evio_install_prefix "${CMAKE_CURRENT_LIST_DIR}" ABSOLUTE)
+
+set(_evio_NOTFOUND_MESSAGE)
+
+# Let components find each other, but don't overwrite CMAKE_PREFIX_PATH
+set(_evio_CMAKE_PREFIX_PATH_old ${CMAKE_PREFIX_PATH})
+set(CMAKE_PREFIX_PATH ${_evio_install_prefix})
+
+foreach(module ${evio_FIND_COMPONENTS})
+    find_package(${module}
+        ${_evio_FIND_PARTS_QUIET}
+        ${_evio_FIND_PARTS_REQUIRED}
+        PATHS "${_evio_install_prefix}" NO_DEFAULT_PATH
+    )
+    if (NOT ${module}_FOUND)
+        if (evio_FIND_REQUIRED_${module})
+            set(_evio_NOTFOUND_MESSAGE "${_evio_NOTFOUND_MESSAGE}Failed to find evio component \"${module}\" config file at \"${_evio_install_prefix}/${module}/${module}Config.cmake\"\n")
+        elseif(NOT evio_FIND_QUIETLY)
+            message(WARNING "Failed to find evio component \"${module}\" config file at \"${_evio_install_prefix}/${module}/${module}Config.cmake\"")
+        endif()
+    endif()
+
+    # For backward compatibility set the LIBRARIES variable
+    list(APPEND evio_LIBRARIES "evio::${module}")
+endforeach()
+
+# Restore the original CMAKE_PREFIX_PATH value
+set(CMAKE_PREFIX_PATH ${_evio_CMAKE_PREFIX_PATH_old})
+
+if (_evio_NOTFOUND_MESSAGE)
+    set(evio_NOT_FOUND_MESSAGE "${_evio_NOTFOUND_MESSAGE}")
+    set(evio_FOUND False)
+endif()
+
