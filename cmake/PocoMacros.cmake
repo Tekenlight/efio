@@ -255,6 +255,7 @@ install(
 	FILES_MATCHING PATTERN "*.h"
     PATTERN ".svn" EXCLUDE
     PATTERN "cmake" EXCLUDE
+    PATTERN "ef_internals.h" EXCLUDE
     )
 
 install(
