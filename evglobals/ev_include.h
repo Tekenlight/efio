@@ -1,5 +1,5 @@
-#ifndef EV_H_INCLUDED
-#define EV_H_INCLUDED
+#ifndef EV_INCLUDE_H_INCLUDED
+#define EV_INCLUDE_H_INCLUDED
 
 #include <stdio.h>
 #include <stdlib.h>

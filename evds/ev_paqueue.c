@@ -3,7 +3,7 @@
 #include <stdio.h>
 #endif
 
-#include <ev.h>
+#include <ev_include.h>
 #include <ev_paqueue.h>
 #include <pthread.h>
 #include <stdbool.h>

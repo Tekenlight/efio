@@ -1,7 +1,7 @@
 #ifndef EF_IO_H_INCLUDED
 #define EF_IO_H_INCLUDED
 
-#include <ev.h>
+#include <ev_include.h>
 #include <sys/cdefs.h>
 #include <errno.h>
 #include <unistd.h>
