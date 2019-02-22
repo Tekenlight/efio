@@ -82,12 +82,21 @@ endif(EF_STATIC)
 
 include(DefinePlatformSpecifc)
 
+if(ENABLE_TESTS)
+	option(ENABLE_LONG_RUNNING_TESTS "Enable long running test" ON)
+	include(CTest)
+	enable_testing()
+	message(STATUS "Building with unittests & samples")
+else()
+	message(STATUS "Building without tests & samples")
+endif()
+
 # Collect the built libraries and include dirs, they will be used to create the EFConfig.cmake file
 
 set(EF_COMPONENTS "")
 
 if(ENABLE_TESTS)
-	add_subdirectory(CppUnit)
+	add_subdirectory(cutest)
 endif()
 
 # evglobals
@@ -105,6 +114,8 @@ list(APPEND EF_COMPONENTS "evthrpool")
 # evio
 add_subdirectory(evio)
 list(APPEND EF_COMPONENTS "evio")
+#add_subdirectory(cutest)
+#list(APPEND EF_COMPONENTS "cutest")
 
 #############################################################
 # Uninstall stuff see: http://www.vtk.org/Wiki/CMake_FAQ

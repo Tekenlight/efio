@@ -43,7 +43,7 @@ POCO_INSTALL("${LIBNAME}")
 POCO_GENERATE_PACKAGE("${LIBNAME}")
 
 if (ENABLE_TESTS)
-    add_subdirectory(samples)
+#	add_subdirectory(samples)
 #	add_subdirectory(testsuite)
 endif ()
 message(STATUS "All seems to have gone well")

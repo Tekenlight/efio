@@ -1,4 +1,4 @@
-set(LIBNAME "evds")
+set(LIBNAME "cutest")
 set(EV_LIBNAME "${LIBNAME}")
 
 # Sources
@@ -27,10 +27,10 @@ set_target_properties( "${LIBNAME}"
     PROPERTIES
     VERSION ${SHARED_LIBRARY_VERSION} SOVERSION ${SHARED_LIBRARY_VERSION}
 	OUTPUT_NAME ${EV_LIBNAME}
-    DEFINE_SYMBOL evds_EXPORTS
+    DEFINE_SYMBOL evglobals_EXPORTS
     )
 
-target_link_libraries( "${LIBNAME}" evglobals evsync ${SYSLIBS} ${LIBEV_LIBRARY})
+target_link_libraries( "${LIBNAME}" ${SYSLIBS} ${LIBEV_LIBRARY})
 target_include_directories( "${LIBNAME}"
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -39,11 +39,7 @@ target_include_directories( "${LIBNAME}"
     )
 target_compile_definitions("${LIBNAME}" PUBLIC ${LIB_MODE_DEFINITIONS})
 
-POCO_INSTALL("${LIBNAME}")
-POCO_GENERATE_PACKAGE("${LIBNAME}")
+#POCO_INSTALL("${LIBNAME}")
+#POCO_GENERATE_PACKAGE("${LIBNAME}")
 
-if (ENABLE_TESTS)
-#	add_subdirectory(samples)
-#	add_subdirectory(testsuite)
-endif ()
 message(STATUS "All seems to have gone well")

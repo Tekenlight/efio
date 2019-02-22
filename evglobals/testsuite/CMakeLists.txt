@@ -1,0 +1,37 @@
+set(TESTUNIT1 "${LIBNAME}-testrunner1")
+set(TESTUNIT2 "${LIBNAME}-testrunner2")
+
+# Sources
+POCO_SOURCES_AUTO( TEST_SRCS_1 test_ev_globals.c)
+POCO_SOURCES_AUTO( TEST_SRCS_2 test_ev_globals_fail.c)
+
+# Headers
+
+#POCO_SOURCES_AUTO_PLAT( TEST_SRCS_1 OFF
+#    src/WinDriver.cpp
+#)
+
+#POCO_SOURCES_AUTO_PLAT( TEST_SRCS_1 WINCE
+#    src/WinCEDriver.cpp
+#)
+
+add_executable( ${TESTUNIT1} ${TEST_SRCS_1} )
+add_executable( ${TESTUNIT2} ${TEST_SRCS_2} )
+if(ANDROID)
+    add_test(NAME ${LIBNAME} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} 
+            COMMAND ${CMAKE_COMMAND} -DANDROID_NDK=${ANDROID_NDK} -DLIBRARY_DIR=${CMAKE_BINARY_DIR}/lib -DUNITTEST=${CMAKE_BINARY_DIR}/bin/${TESTUNIT1} -DTEST_PARAMETER=-all -P ${CMAKE_SOURCE_DIR}/cmake/ExecuteOnAndroid.cmake)
+    add_test(NAME ${LIBNAME} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} 
+            COMMAND ${CMAKE_COMMAND} -DANDROID_NDK=${ANDROID_NDK} -DLIBRARY_DIR=${CMAKE_BINARY_DIR}/lib -DUNITTEST=${CMAKE_BINARY_DIR}/bin/${TESTUNIT2} -DTEST_PARAMETER=-all -P ${CMAKE_SOURCE_DIR}/cmake/ExecuteOnAndroid.cmake)
+else()
+	add_test(NAME ${TESTUNIT1} WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} COMMAND ${TESTUNIT1} -all)
+	add_test(NAME ${TESTUNIT2} WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} COMMAND ${TESTUNIT2} -all)
+endif()
+target_link_libraries( "${TESTUNIT1}" evglobals evds cutest "${SYSLIBS}")
+target_link_libraries( "${TESTUNIT2}" evglobals evds cutest "${SYSLIBS}")
+
+target_include_directories( "${LIBNAME}"
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+    )
