@@ -234,81 +234,11 @@ int destroy_thread_pool(struct thread_pool_s *pool)
 	return 0;
 }
 
-#ifdef NEVER
-
-#include <stdio.h>
-
-void task_func(void * data)
+int thrpool_get_task_count(struct thread_pool_s *pool)
 {
-	char * s = data;
-	//usleep(100000);
-	//usleep(25);
-	//usleep(10);
-	return;
-}
-
-struct __s {
-	int N;
-	struct thread_pool_s *pool;
-};
-
-void * enq(void *data)
-{
-	int i = 0;
-	struct __s * sptr = data;
-	int N = sptr->N;
-	for (i=0; i< N/4; i++) {
-		enqueue_task(sptr->pool, task_func, (void*)("WORLD HELLO"));;
-		//usleep(100000);
+	int count = 0, i = 0;
+	for (i=0;i<pool->_num_threads;i++) {
+		count += atomic_load_explicit(&pool->_threads[i].task_count,memory_order_relaxed);
 	}
-	//printf("ENQ complete [%p]\n",pthread_self());
-	return NULL;
+	return count;
 }
-
-int main()
-{
-	struct thread_pool_s *pool = NULL;
-	int N = 2000000;
-	int THREADS = 4;
-	int total = 0;
-	//int N = 20;
-	struct __s s;
-	pthread_t t0,t1, t2, t3, t4;
-	pool = create_thread_pool(THREADS);
-	s.N = N;
-	s.pool = pool;
-
-	pthread_create(&t1, NULL, enq, &s);
-	pthread_create(&t2, NULL, enq, &s);
-	pthread_create(&t3, NULL, enq, &s);
-	pthread_create(&t4, NULL, enq, &s);
-	pthread_join(t1,NULL);
-	pthread_join(t2,NULL);
-	pthread_join(t3,NULL);
-	pthread_join(t4,NULL);
-	{
-		int i = 0;
-		total = 0;
-		for (i=0;i<THREADS;i++) {
-			total += atomic_load_explicit(&pool->_threads[i].task_count,memory_order_relaxed);
-		}
-	}
-
-	while (total < N) {
-		pthread_yield_np();
-		{
-			int i = 0;
-			total = 0;
-			for (i=0;i<THREADS;i++) {
-				total += atomic_load_explicit(&pool->_threads[i].task_count,memory_order_relaxed);
-			}
-		}
-	}
-
-	printf("Number of exec times = [%d]\n", total);
-	destroy_thread_pool(pool);
-
-	return 0;
-}
-
-#endif

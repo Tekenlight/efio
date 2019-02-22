@@ -20,6 +20,7 @@ __BEGIN_DECLS
 thread_pool_s_type * create_thread_pool(int num_threads);
 int destroy_thread_pool(thread_pool_s_type *);
 void enqueue_task(thread_pool_type,task_func_type,task_argument_type);
+int thrpool_get_task_count(struct thread_pool_s *pool);
 __END_DECLS
 
 #endif
