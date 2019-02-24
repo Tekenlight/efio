@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdatomic.h>
+#include <CuTest.h>
 
 
 struct thr_inp {
@@ -36,27 +37,9 @@ void * thr(void *param)
 	}
 
 	for (i=0;i<COUNT;i++,j++) {
-		//printf("THREAD1:0%d:%d\n",i,j);//fflush(stdout);
 		enqueue_evpaq(pq_ptr,(void*)(long)j);
-		//enqueue_evpaq(pq_ptr,(void*)(long)j);
-		//usleep(1);
 		dequeue_evpaq(pq_ptr);
-		//dequeue_evpaq(pq_ptr);
-		//j++;i++;
-		//printf("THREAD1:0%d:%d\n",i,(int)dequeue_evpaq(pq_ptr));fflush(stdout);
 	}
-
-	/*
-	for (i=0;i<COUNT;i++,j++) {
-		//printf("THREAD1:0%d:%d\n",i,j);//fflush(stdout);
-		//enqueue_evpaq(pq_ptr,(void*)(long)j);
-		//usleep(1);
-		dequeue_evpaq(pq_ptr);
-		//printf("THREAD1:0%d:%d\n",i,(int)dequeue_evpaq(pq_ptr));fflush(stdout);
-	}
-	*/
-
-	//printf("THR1 OVER\n");
 
 	return NULL;
 }
@@ -72,17 +55,12 @@ void * thr_TEST(void *param)
 		printf("THREAD_TEST:%d:%d\n",i,fd);fflush(stdout);
 	}
 
-	/*
-	for (i=0;i<128;i++) {
-		printf("THREAD_TEST:%d:%d\n",i,fd);//fflush(stdout);
-	}
-	*/
 	return NULL;
 }
 
-int run_ev_globals_test()
+static void test_main(CuTest *tc)
 {
-	int i = -1, fd = 0;;
+	int i = 0, fd = 0;;
 	pthread_t t0,t1, t2, t3, t4, t5;
 	void *retptr = NULL;
 	struct thr_inp inp1 ;
@@ -121,8 +99,8 @@ int run_ev_globals_test()
 	/*
 	inp5.slot = 5;
 	pthread_create(&t5, NULL, thr, &inp5);
-	*/
 	pthread_join(t0,&retptr);
+	*/
 	pthread_join(t1,&retptr);
 	pthread_join(t2,&retptr);
 	pthread_join(t3,&retptr);
@@ -135,7 +113,6 @@ int run_ev_globals_test()
 
 	{
 		void * p;
-		int i = 0;
 		while (NULL != (p = dequeue_evpaq(q))) {
 			++i;
 			fd = (int)(long)p;
@@ -146,11 +123,26 @@ int run_ev_globals_test()
 
 	//destroy_ev_queue(&q);
 
-	return 0;
+	//CuAssertTrue(tc, i==0);
 }
 
+
+static int run_ev_test()
+{
+	CuSuite* suite = CuSuiteNew();
+	CuString *output = CuStringNew();
+
+	SUITE_ADD_TEST(suite,test_main);
+
+	CuSuiteRun(suite);
+    CuSuiteSummary(suite, output);
+    CuSuiteDetails(suite, output);
+    printf("%s\n", output->buffer);
+	return suite->failCount;
+}
 
 int main()
 {
-	return run_ev_globals_test();
+	return run_ev_test();
 }
+

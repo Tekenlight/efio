@@ -5,6 +5,7 @@
 #include <stdatomic.h>
 #include <time.h>
 #include <pthread.h>
+#include <CuTest.h>
 
 
 struct thr_inp {
@@ -79,9 +80,9 @@ void * thr_TEST(void *param)
 	return NULL;
 }
 
-int run_ev_globals_test()
+static void test_main(CuTest *tc)
 {
-	int i = -1, fd = 0;;
+	int i = 0, fd = 0;;
 	pthread_t t0,t1, t2, t3, t4, t5;
 	void *retptr = NULL;
 	struct thr_inp inp1 ;
@@ -134,7 +135,6 @@ int run_ev_globals_test()
 
 	{
 		void * p;
-		int i = 0;
 		while (NULL != (p = dequeue_ev_pqueue(q))) {
 			++i;
 			fd = (int)(long)p;
@@ -145,11 +145,27 @@ int run_ev_globals_test()
 
 	//destroy_ev_pqueue(&q);
 
-	return 0;
+	CuAssertTrue(tc, i==0);
 }
 
+
+static int run_ev_test()
+{
+	CuSuite* suite = CuSuiteNew();
+	CuString *output = CuStringNew();
+
+	SUITE_ADD_TEST(suite,test_main);
+
+	CuSuiteRun(suite);
+    CuSuiteSummary(suite, output);
+    CuSuiteDetails(suite, output);
+    printf("%s\n", output->buffer);
+	printf("Count = %d\n",suite->count);
+	return suite->failCount;
+}
 
 int main()
 {
-	return run_ev_globals_test();
+	return run_ev_test();
 }
+

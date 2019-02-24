@@ -929,7 +929,7 @@ static void ef_file_write(void * data)
 		errno = 0;
 		if (w_t->_cmd == file_write_evt) bytes_transfered += ef_one_single_write(file_ptr,w_t);
 		else ef_file_fsync(file_ptr);
-		w_t = w_t->next;
+		w_t = w_t->_next;
 	}
 
 	file_ptr->_action->_return_value += bytes_transfered;
@@ -1020,7 +1020,7 @@ static void sync_file_writes(int fd)
 
 		w_t->_buf = file_ptr->_action->_inp._write_inp._w_accum._data;;
 		w_t->_nbyte = file_ptr->_action->_inp._write_inp._w_accum._bytes;
-		w_t->next = NULL;
+		w_t->_next = NULL;
 		w_t->_cmd = file_fsync_evt;
 
 		file_ptr->_action->_inp._write_inp._write_totreq_count++;
@@ -1109,7 +1109,7 @@ static void file_writer(void * data)
 
 							compl_count++;
 							ptr = w_t;
-							w_t = w_t->next;
+							w_t = w_t->_next;
 							free(ptr->_buf);
 							free(ptr);
 							ptr = NULL;
@@ -1119,14 +1119,14 @@ static void file_writer(void * data)
 					{
 						w_t = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
 						if (w_t) {
-							w_t->next = NULL;
+							w_t->_next = NULL;
 							file_ptr->_action->_inp._write_inp._b_w_list = w_t;
 							file_ptr->_action->_inp._write_inp._write_req_count++;
 							ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
 							while (ptr) {
 								file_ptr->_action->_inp._write_inp._write_req_count++;
-								ptr->next = NULL;
-								w_t->next = ptr;
+								ptr->_next = NULL;
+								w_t->_next = ptr;
 								w_t = ptr;
 								ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
 							}
@@ -1146,14 +1146,14 @@ static void file_writer(void * data)
 					{
 						w_t = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
 						if (w_t) {
-							w_t->next = NULL;
+							w_t->_next = NULL;
 							file_ptr->_action->_inp._write_inp._b_w_list = w_t;
 							file_ptr->_action->_inp._write_inp._write_req_count++;
 							ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
 							while (ptr) {
 								file_ptr->_action->_inp._write_inp._write_req_count++;
-								ptr->next = NULL;
-								w_t->next = ptr;
+								ptr->_next = NULL;
+								w_t->_next = ptr;
 								w_t = ptr;
 								ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
 							}
@@ -1350,7 +1350,7 @@ static void write_buffer_sync(EF_FILE * file_ptr)
 
 	w_t->_buf = file_ptr->_action->_inp._write_inp._w_accum._data;;
 	w_t->_nbyte = file_ptr->_action->_inp._write_inp._w_accum._bytes;
-	w_t->next = NULL;
+	w_t->_next = NULL;
 	w_t->_cmd = file_write_evt;
 
 	file_ptr->_action->_inp._write_inp._w_accum._data = NULL;

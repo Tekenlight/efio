@@ -1,0 +1,489 @@
+0123456789
+0123456789
+#ifdef NEVER
+#include <stdio.h>
+#endif
+
+#include <ev_globals.h>
+#include <ef_io.h>
+#include <ef_internals.h>
+#include <ev_queue.h>
+#include <pthread.h>
+#include <thread_pool.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
+
+static EF_FILE * sg_open_files[EF_MAX_FILES] = {};
+static ev_queue_type fd_queue = NULL;;
+static thread_pool_type disk_io_thr_pool = NULL;;
+static size_t sg_page_size = 0;
+
+static void setup_fd_slots()
+{
+	for (int i = 0 ; i < EF_MAX_FILES ; i++) {
+		enqueue(fd_queue,(void*)(long)i);
+	}
+	return ;
+}
+
+/* To initialize the FILE IO module */
+/* It is assumed that this function will operate in a 
+ * single threaded manner */
+void ef_init(ef_notification_f_type cb_func)
+{
+	errno = 0;
+	ev_init_globals();
+
+	sg_page_size = (size_t)get_sys_pagesize();
+
+	/* Start the thread pool needed to carryout the file operations
+	 * in an async manner.
+	 * One thread reserved for transfering data from memory to disk
+	 * 2 threads for carrying out asynchrnous, read, open and close
+	 * operations.
+	 */
+	disk_io_thr_pool = create_thread_pool(3);
+
+	/* Setup the table to hold the state data of files. */
+	memset(sg_open_files,0,EF_MAX_FILES*sizeof(EF_FILE *));
+	fd_queue = create_ev_queue();
+	setup_fd_slots();
+
+	return;
+}
+
+static void ef_file_open(void * data)
+{
+	EF_FILE		*file_ptr = data;
+	// If action is null, it is not known what to do.
+	errno = 0;
+	if (!file_ptr->_action)
+	{
+		//printf("[%s:%d] NULL Action \n",__FILE__,__LINE__);fflush(stdout);
+		return;
+	}
+	errno = 0;
+
+	//printf("[%s:%d] path = %s flag = %d mode = %d fd = %d\n",__FILE__,__LINE__,
+	//		file_ptr->_action->_inp._open_inp._path,
+	//		file_ptr->_action->_inp._open_inp._oflag,
+	//		file_ptr->_action->_inp._open_inp._mode,
+	//		file_ptr->_fd);fflush(stdout);
+
+	file_ptr->_action->_action_status = ACTION_IN_PROGRESS;
+
+	if (O_CREAT&(file_ptr->_action->_inp._open_inp._oflag)) {
+		file_ptr->_fd = open(file_ptr->_action->_inp._open_inp._path,
+							file_ptr->_action->_inp._open_inp._oflag,
+							file_ptr->_action->_inp._open_inp._mode);
+	}
+	else {
+		file_ptr->_fd = open(file_ptr->_action->_inp._open_inp._path,
+							file_ptr->_action->_inp._open_inp._oflag);
+	}
+
+	//printf("[%s:%d] path = %s flag = %d mode = %d fd = %d\n",__FILE__,__LINE__,
+	//		file_ptr->_action->_inp._open_inp._path,
+	//		file_ptr->_action->_inp._open_inp._oflag,file_ptr->_action->_inp._open_inp._mode,
+	//		file_ptr->_fd);fflush(stdout);
+	//
+	if (file_ptr->_fd >= 0) {
+		struct stat buf;
+		fcntl(file_ptr->_fd,F_GLOBAL_NOCACHE,1);
+		fstat(file_ptr->_fd,&buf);
+		file_ptr->_orig_file_size = file_ptr->_file_size = buf.st_size;
+		file_ptr->_file_offset = 0;
+	}
+
+	file_ptr->_action->_return_value = file_ptr->_fd;
+	file_ptr->_action->_err = errno;
+	file_ptr->_action->_action_status = ACTION_COMPLETE;
+	file_ptr->_status = (file_ptr->_fd == -1)?FILE_NOT_OPEN:FILE_OPEN;
+	return ;
+}
+
+/* Request to open the file */
+/* There is a global array of file handles and an index which indicates last used index
+ * for opening. The logic in this function is to use a slot that is till now unused.
+ * Start from the place of global index + 1 and search until an unused slot is found.
+ * Search only EF_MAX_FILES number of times, if not successful within that many attemts return
+ * with error. */
+int ef_open(const char * path, int oflag, ...)
+{
+	int fd = 0;
+	EF_FILE * file_ptr = NULL;
+
+	errno = 0;
+	if (path == NULL || *path == '\0') {
+		/* operation not supported, invalid input */
+		errno = EINVAL;
+		return -1;
+	}
+
+	if ((O_RDONLY != oflag) && !((O_APPEND|O_CREAT)&oflag) ) {
+		/* operation not supported, invalid input */
+		errno = EINVAL;
+		return -1;
+	}
+
+	fd = (int)(long)dequeue(fd_queue);
+	if (-1 == fd) {
+		/* Too many open files */
+		errno = EMFILE;
+		return -1;
+	}
+
+	sg_open_files[fd] = malloc(sizeof(EF_FILE));
+	file_ptr = (EF_FILE *)(sg_open_files[fd]);
+	EF_FILE_INIT(file_ptr);
+
+	/* Submit Request to open the file */
+	if (O_CREAT&oflag) {
+		va_list ap;
+		va_start(ap,oflag);
+		file_ptr->_action->_inp._open_inp._mode = (mode_t)va_arg(ap,int);
+		va_end(ap);
+	}
+	eio_cmd_init(file_ptr->_action,oper_open);
+	file_ptr->_action->_inp._open_inp._path = path;
+	file_ptr->_action->_inp._open_inp._oflag = oflag;
+	file_ptr->_status = FILE_OPEN_ATTEMPTED;
+
+	enqueue_task(disk_io_thr_pool,ef_file_open,file_ptr);
+
+	/* Return the handle to file. */
+	return fd;
+}
+
+int ef_file_state(int fd)
+{
+	return ((sg_open_files[fd])?sg_open_files[fd]->_status:-1);
+}
+
+int ef_open_status(int fd)
+{
+	int status = 0;
+	errno = 0;
+	if (!sg_open_files[fd]) {
+		errno = EINVAL;
+		return -1;
+	}
+	if (sg_open_files[fd]->_status == FILE_OPEN_ATTEMPTED) {
+		errno = EAGAIN;
+		return -1;
+	}
+	if (sg_open_files[fd]->_action) {
+		if (sg_open_files[fd]->_action->_action_status == ACTION_COMPLETE) {
+			if (sg_open_files[fd]->_action->_return_value == -1) {
+				errno = sg_open_files[fd]->_action->_err;
+				free(sg_open_files[fd]->_action);
+				free(sg_open_files[fd]);
+				sg_open_files[fd] = NULL;
+
+				return -1;
+			}
+			else if (sg_open_files[fd]->_action->_return_value == -100) {
+				errno = EAGAIN;
+				return -1;
+			}
+			else {
+				free(sg_open_files[fd]->_action);
+				sg_open_files[fd]->_action = NULL;
+				return sg_open_files[fd]->_fd;
+			}
+		}
+		else {
+			errno = EAGAIN;
+			return -1;
+		}
+	}
+	else {
+		if (sg_open_files[fd]->_status == FILE_OPEN) {
+			return sg_open_files[fd]->_fd;
+		}
+		else {
+			errno = EBADF;
+			return -1;
+		}
+	}
+
+	return status;
+}
+
+/*
+ * Much more work needs to be done at this point.
+ * It is required that this procedure be completed
+ * post the development of read and write procedures.
+ * All data that is writen and not yet synced to the disk
+ * should be synced and then the file should be closed.
+ * Right now, this is only a cover function.
+ * */
+static void ef_file_close(void * data)
+{
+	EF_FILE		*file_ptr = data;
+	int			ret = 0;
+	// If action is null, it is not known what to do.
+	errno = 0;
+	if (!file_ptr->_action) return;
+
+	file_ptr->_action->_action_status = ACTION_IN_PROGRESS;
+
+	/*
+	 * Much more work needs to be done at this point.
+	 * It is required that this procedure be completed
+	 * post the development of read and write procedures.
+	 * All data that is writen and not yet synced to the disk
+	 * should be synced and then the file should be closed.
+	 * Right now, this is only a cover function.
+	 * */
+
+	ret = close(file_ptr->_fd);
+
+	file_ptr->_action->_return_value = ret;
+	//printf("[%s:%d] fd = [%d] ret = [%d]\n",__FILE__,__LINE__,file_ptr->_fd,ret);fflush(stdout);
+	if (ret == -1) {
+		perror("ERROR");
+	}
+	file_ptr->_action->_err = errno;
+	file_ptr->_status = FILE_NOT_OPEN;
+	file_ptr->_action->_action_status = ACTION_COMPLETE;
+
+	return ;
+}
+
+int ef_close_status(int fd)
+{
+	errno = 0;
+	if (!sg_open_files[fd]) {
+		return 0;
+	}
+	if (sg_open_files[fd]->_action) {
+		if (sg_open_files[fd]->_action->_action_status == ACTION_COMPLETE) {
+			if (sg_open_files[fd]->_action->_return_value == -1) {
+
+				errno = sg_open_files[fd]->_action->_err;
+				free(sg_open_files[fd]->_action);
+				sg_open_files[fd]->_action = NULL;
+
+				return -1;
+			}
+			else if (sg_open_files[fd]->_action->_return_value == -100) {
+				errno = EAGAIN;
+				return -1;
+			}
+			else {
+				free(sg_open_files[fd]->_action);
+				free(sg_open_files[fd]);
+				sg_open_files[fd] = NULL;
+				enqueue(fd_queue,(void*)(long)fd);
+				return 0;
+			}
+		}
+		else {
+			errno = EAGAIN;
+			return -1;
+		}
+	}
+	else {
+		errno = EINVAL;
+		return -1;
+	}
+
+	return FILE_NOT_OPEN;
+}
+
+int ef_close(int fd)
+{
+	errno = 0;
+	if (!sg_open_files[fd]) { errno = EINVAL; return -1; }
+
+	if (sg_open_files[fd]->_status != FILE_OPEN) {
+		errno = EBADF;
+		return -1;
+	}
+
+	//printf("[%s:%d] Received request to close file %d fd = %d\n",__FILE__,__LINE__,fd, sg_open_files[fd]->_fd);fflush(stdout);
+
+	eio_cmd_init(sg_open_files[fd]->_action,oper_close);
+
+	enqueue_task(disk_io_thr_pool,ef_file_close,sg_open_files[fd]);
+
+	return 0;
+}
+
+static void ef_file_read(void *data)
+{
+	//ma:
+	EF_FILE *file_ptr = (EF_FILE*)data;
+	int ret = 0;
+	file_ptr->_action->_action_status = ACTION_IN_PROGRESS;
+
+	if (!file_ptr->_buffer) {
+		file_ptr->_buffer = malloc(sg_page_size);
+	}
+	memset(file_ptr->_buffer,0,sg_page_size);
+
+	ret = pread(file_ptr->_fd,file_ptr->_buffer,sg_page_size,file_ptr->_file_offset);
+
+	file_ptr->_action->_return_value = ret;
+	file_ptr->_action->_err = errno;
+	file_ptr->_action->_action_status = ACTION_COMPLETE;
+
+	//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+	return;
+}
+
+static void ef_fire_file_read(EF_FILE * file_ptr)
+{
+	if ((file_ptr->_buffer_index * sg_page_size) != file_ptr->_file_offset) {
+		//printf("[%s:%d] This must never occur\n",__FILE__,__LINE__);fflush(stdout);
+	}
+	if (file_ptr->_action) {
+		//printf("[%s:%d] While this can occur\n",__FILE__,__LINE__);fflush(stdout);
+		return;
+	}
+	eio_cmd_init(file_ptr->_action,oper_read);
+
+	file_ptr->_action->_inp._read_inp._offset = file_ptr->_buffer_index * sg_page_size;
+	file_ptr->_action->_inp._read_inp._size =  sg_page_size;
+
+	enqueue_task(disk_io_thr_pool,ef_file_read,file_ptr);
+	return;
+}
+
+ssize_t ef_read(int fd, void * buf, size_t nbyte)
+{
+	ssize_t		ret = 0;
+	off_t		page_offset = 0;
+	size_t		transfer_size = 0;
+	EF_FILE		*file_ptr = NULL;
+
+	errno = 0;
+	if (!sg_open_files[fd]) {
+		//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+		errno = EINVAL;
+		return -1;
+	}
+	/* Only <= page_size (4k) of read supported. */
+	if (NULL == buf || 0 >= nbyte || sg_page_size < nbyte) {
+		//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+		errno = EINVAL;
+		return -1;
+	}
+	if (sg_open_files[fd]->_status != FILE_OPEN) {
+		//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+		errno = EBADF;
+		return -1;
+	}
+	if (sg_open_files[fd]->_file_offset >= sg_open_files[fd]->_file_size) {
+		//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+		/* End of file has been reached. */
+		return 0;
+	}
+	file_ptr = sg_open_files[fd];
+	page_offset = file_ptr->_file_offset - (file_ptr->_buffer_index * sg_page_size);
+	//printf("[%s:%d] page_offset = [%lld]\n",__FILE__,__LINE__,page_offset);fflush(stdout);
+	//printf("[%s:%d] file_ptr->_file_offset = [%lld]\n",__FILE__,__LINE__,file_ptr->_file_offset);fflush(stdout);
+
+	/* Handle only error conditions here. */
+	if (file_ptr->_action) {
+		if (file_ptr->_action->_action_status == ACTION_COMPLETE) {
+			if (file_ptr->_action->_return_value == -1) {
+				//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+				errno = file_ptr->_action->_err;
+				free(file_ptr->_action);
+				file_ptr->_action = NULL;
+				return -1;
+			}
+			else if (file_ptr->_action->_return_value == -100) {
+				//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+				errno = EAGAIN;
+				return -1;
+			}
+			else {
+				//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+				if (file_ptr->_action->_return_value == 0) {
+					/* This must not happen here, but still */
+					/* i.e. EOF is already checked for above. */
+					//printf("[%s:%d] EOF Reached\n",__FILE__,__LINE__);fflush(stdout);
+					free(file_ptr->_action);
+					file_ptr->_action = NULL;
+					return 0;
+				}
+				else {
+				//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+					// Read has happened successfully
+					free(file_ptr->_action);
+					file_ptr->_action = NULL;
+				}
+			}
+		}
+		else {
+			//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+			/* We dont know the status yet. */
+			errno = EAGAIN;
+			return -1;
+		}
+	}
+
+	if (file_ptr->_buffer == NULL) {
+		
+		//printf("[%s:%d] Reached here\n",__FILE__,__LINE__);fflush(stdout);
+		/* Fire a fresh read. */
+		ef_fire_file_read(file_ptr);
+		errno = EAGAIN;
+		ret = -1;
+	}
+	else {
+				//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+		if ((sg_page_size - page_offset) > 0) {
+				//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+			transfer_size = (nbyte <= (sg_page_size - page_offset))?nbyte:(sg_page_size - page_offset);
+			if ((file_ptr->_file_offset+transfer_size)>file_ptr->_file_size) {
+				transfer_size = transfer_size - ((file_ptr->_file_offset+transfer_size) - file_ptr->_file_size);
+			}
+			//printf("[%s:%d] page_offset = [%lld]\n",__FILE__,__LINE__,page_offset);fflush(stdout);
+			//printf("[%s:%d] file_ptr->_file_offset = [%lld]\n",__FILE__,__LINE__,file_ptr->_file_offset);fflush(stdout);
+			//printf("[%s:%d] transfer_size = [%zu]\n",__FILE__,__LINE__,transfer_size);fflush(stdout);
+			memcpy(buf,file_ptr->_buffer+page_offset,transfer_size);
+			//printf("[%s:%d] page_offset = [%lld]\n",__FILE__,__LINE__,page_offset);fflush(stdout);
+			page_offset += transfer_size;
+			file_ptr->_file_offset += transfer_size;
+			//printf("[%s:%d] page_offset = [%lld]\n",__FILE__,__LINE__,page_offset);fflush(stdout);
+			//printf("[%s:%d] file_ptr->_file_offset = [%lld]\n",__FILE__,__LINE__,file_ptr->_file_offset);fflush(stdout);
+			ret = transfer_size;
+			if (page_offset == sg_page_size) {
+				//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+				/* Fire a fresh read. */
+				page_offset = 0;
+				file_ptr->_buffer_index++;
+				ef_fire_file_read(file_ptr);
+			}
+			else if (page_offset > sg_page_size) {
+				//printf("[%s:%d] should have never reached here\n",__FILE__,__LINE__);fflush(stdout);
+				exit(1);
+			}
+		}
+		else if ((sg_page_size - page_offset) == 0) {
+			/* Fire a fresh read. */
+			//printf("[%s:%d] This should never happen\n",__FILE__,__LINE__);fflush(stdout);
+			page_offset = 0;
+			file_ptr->_buffer_index++;
+			ef_fire_file_read(file_ptr);
+			errno = EAGAIN;
+			ret = -1;
+		}
+		else {
+				//printf("[%s:%d] Reached\n",__FILE__,__LINE__);fflush(stdout);
+			errno = EBADF;
+			return -1;
+		}
+	}
+
+	return ret;
+}
+
+
+
+#ifdef NEVER

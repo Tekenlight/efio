@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include <errno.h>
 
+static int open_cb_happened = 0;
+static int read_cb_happened = 0;
+static int close_cb_happened = 0;
+
 void call_back_func(int fd, int oper,  void *cb_data)
 {
 	char * operation = NULL;

@@ -57,7 +57,7 @@ struct write_task_s {
 	write_task_evt_type		_cmd;
 	void					*_buf;
 	size_t					_nbyte;
-	struct write_task_s 	*next;
+	struct write_task_s 	*_next;
 };
 
 struct data_buf_s {
@@ -204,7 +204,7 @@ typedef struct _s {
 			w_t = (p)->_action->_inp._write_inp._b_w_list; \
 			while (w_t) { \
 				ptr = w_t; \
-				w_t = w_t->next; \
+				w_t = w_t->_next; \
 				free(ptr->_buf); \
 				free(ptr); \
 				ptr = NULL; \

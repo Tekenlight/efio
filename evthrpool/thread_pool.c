@@ -10,16 +10,16 @@
 #include <ev_queue.h>
 
 struct task_s {
-	task_func_type task_function;
-	task_argument_type * arg;
+	task_func_type _task_function;
+	task_argument_type * _arg;
 	int					_shutdown;
 };
 
 struct thr_s {
-	pthread_t	t;
-	atomic_int 	state;
-	atomic_int	task_count;
-	bool	subscribed;
+	pthread_t	_t;
+	atomic_int 	_state;
+	atomic_int	_task_count;
+	bool	_subscribed;
 };
 #if defined THREAD_FREE
 #undef THREAD_FREE
@@ -44,13 +44,13 @@ struct thread_pool_s {
 };
 
 struct thr_free_s {
-	pthread_t	t;
-	int			thr_index;
+	pthread_t	_t;
+	int			_thr_index;
 };
 
 struct thr_inp_data_s {
-	struct thread_pool_s	*pool;
-	int						thr_index;
+	struct thread_pool_s	*_pool;
+	int						_thr_index;
 };
 
 void thr_wakeup_sig_handler(int s)
@@ -72,12 +72,12 @@ static void * thread_loop(void *data)
 	int						sleeping_time = 0;
 	int						slept_time = 0;
 
-	pool = ((struct thr_inp_data_s *)data)->pool;
-	thr_index = ((struct thr_inp_data_s *)data)->thr_index;
+	pool = ((struct thr_inp_data_s *)data)->_pool;
+	thr_index = ((struct thr_inp_data_s *)data)->_thr_index;
 	free(data);
 	data = NULL;
 
-	pool->_threads[thr_index].state = THREAD_FREE;
+	pool->_threads[thr_index]._state = THREAD_FREE;
 	for (;;) {
 		s = atomic_load_explicit(&(pool->_shutdown),memory_order_relaxed);
 		if (s) break;
@@ -85,19 +85,19 @@ static void * thread_loop(void *data)
 		if (!qe) {
 			int i = 0;
 			while (s == 0) {
-				pool->_threads[thr_index].subscribed = true;
+				pool->_threads[thr_index]._subscribed = true;
 				sleeping_time = (i>pool->_alwd_busy_waits)?i*pool->_min_sleep_usec:0;
 				slept_time += sleeping_time;
 				slept_count++;
-				if (pool->_threads[thr_index].subscribed) {
+				if (pool->_threads[thr_index]._subscribed) {
 					if (i>pool->_alwd_busy_waits) usleep(sleeping_time);
 					else pthread_yield_np();
 				}
-				pool->_threads[thr_index].subscribed = false;
+				pool->_threads[thr_index]._subscribed = false;
 
 				qe = dequeue(pool->_task_queue);
 				if (qe) {
-					if (!(qe->task_function)) {
+					if (!(qe->_task_function)) {
 						s = 1;
 					}
 					break;
@@ -108,11 +108,11 @@ static void * thread_loop(void *data)
 		}
 		if (s) break;
 		atomic_thread_fence(memory_order_acq_rel);
-		pool->_threads[thr_index].state = THREAD_BUSY;
-		(*(qe->task_function))(qe->arg);
+		pool->_threads[thr_index]._state = THREAD_BUSY;
+		(*(qe->_task_function))(qe->_arg);
 		free(qe);
-		atomic_fetch_add(&(pool->_threads[thr_index].task_count),1);
-		pool->_threads[thr_index].state = THREAD_FREE;
+		atomic_fetch_add(&(pool->_threads[thr_index]._task_count),1);
+		pool->_threads[thr_index]._state = THREAD_FREE;
 	}
 
 	//EV_DBGP("Slept for %d times and for %d us\n",slept_count,(slept_time));
@@ -149,14 +149,14 @@ struct thread_pool_s * create_thread_pool(int num_threads)
 	{
 		for (int i=0; i < num_threads;i++) {
 			struct thr_inp_data_s * data = malloc(sizeof(struct thr_inp_data_s));
-			data->pool = pool;
-			data->thr_index = i;
-			if (pthread_create(&pool->_threads[i].t,&attr,thread_loop,data)) {
+			data->_pool = pool;
+			data->_thr_index = i;
+			if (pthread_create(&pool->_threads[i]._t,&attr,thread_loop,data)) {
 				destroy_thread_pool(pool);
 				return NULL;
 			}
-			pool->_threads[i].state = THREAD_FREE;
-			pool->_threads[i].task_count = 0;
+			pool->_threads[i]._state = THREAD_FREE;
+			pool->_threads[i]._task_count = 0;
 			pool->_num_threads++;
 		}
 	}
@@ -182,7 +182,7 @@ static void wake_all_threads(struct thread_pool_s *pool, int immediate)
 	struct task_s * qe = NULL;
 	for (int i = 0; i < pool->_num_threads; i++) {
 		qe = malloc(sizeof(struct task_s));
-		qe->task_function = NULL;
+		qe->_task_function = NULL;
 		enqueue(pool->_task_queue,qe);
 	}
 	return;
@@ -198,8 +198,8 @@ void enqueue_task(struct thread_pool_s *pool, task_func_type func,
 {
 	struct task_s * qe = NULL;
 	qe = malloc(sizeof(struct task_s));
-	qe->task_function = func;
-	qe->arg = argument;
+	qe->_task_function = func;
+	qe->_arg = argument;
 	enqueue(pool->_task_queue,qe);
 
 	atomic_fetch_add(&pool->_cond_count,1);
@@ -226,7 +226,7 @@ int destroy_thread_pool(struct thread_pool_s *pool)
 	wake_all_threads(pool,0);
 
 	for (int i=0;i<pool->_num_threads ; i++) {
-		pthread_join(pool->_threads[i].t,NULL);
+		pthread_join(pool->_threads[i]._t,NULL);
 	}
 
 	free_thread_pool(pool);
@@ -238,7 +238,7 @@ int thrpool_get_task_count(struct thread_pool_s *pool)
 {
 	int count = 0, i = 0;
 	for (i=0;i<pool->_num_threads;i++) {
-		count += atomic_load_explicit(&pool->_threads[i].task_count,memory_order_relaxed);
+		count += atomic_load_explicit(&pool->_threads[i]._task_count,memory_order_relaxed);
 	}
 	return count;
 }

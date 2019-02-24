@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdatomic.h>
+#include <CuTest.h>
 
 struct thr_inp {
 	ev_queue_type pq_ptr;
@@ -55,7 +56,7 @@ void * thr_TEST(void *param)
 	return NULL;
 }
 
-int run_ev_globals_test()
+static void test_main(CuTest *tc)
 {
 	int i = 0, fd = 0;;
 	pthread_t t0,t1, t2, t3, t4, t5;
@@ -96,8 +97,8 @@ int run_ev_globals_test()
 	/*
 	inp5.slot = 5;
 	pthread_create(&t5, NULL, thr, &inp5);
-	*/
 	pthread_join(t0,&retptr);
+	*/
 	pthread_join(t1,&retptr);
 	pthread_join(t2,&retptr);
 	pthread_join(t3,&retptr);
@@ -120,10 +121,26 @@ int run_ev_globals_test()
 
 	//destroy_ev_queue(&q);
 
-	return i;
+	CuAssertTrue(tc, i==0);
+}
+
+
+static int run_ev_test()
+{
+	CuSuite* suite = CuSuiteNew();
+	CuString *output = CuStringNew();
+
+	SUITE_ADD_TEST(suite,test_main);
+
+	CuSuiteRun(suite);
+    CuSuiteSummary(suite, output);
+    CuSuiteDetails(suite, output);
+    printf("%s\n", output->buffer);
+	printf("Count = %d\n",suite->count);
+	return suite->failCount;
 }
 
 int main()
 {
-	return run_ev_globals_test();
+	return run_ev_test();
 }

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <ev_stack.h>
+#include <CuTest.h>
 
 void * thr1(void *param)
 {
@@ -74,7 +75,7 @@ void * thr_TEST(void *param)
 	return NULL;
 }
 
-int run_ev_globals_test()
+static void test_main(CuTest *tc)
 {
 	int i = 0;
 	pthread_t t0, t1, t2, t3, t4;
@@ -109,10 +110,26 @@ int run_ev_globals_test()
 		}
 	}
 
-	return i;
+	CuAssertTrue(tc, i==0);
+}
+
+
+static int run_ev_test()
+{
+	CuSuite* suite = CuSuiteNew();
+	CuString *output = CuStringNew();
+
+	SUITE_ADD_TEST(suite,test_main);
+
+	CuSuiteRun(suite);
+    CuSuiteSummary(suite, output);
+    CuSuiteDetails(suite, output);
+    printf("%s\n", output->buffer);
+	printf("Count = %d\n",suite->count);
+	return suite->failCount;
 }
 
 int main()
 {
-	return run_ev_globals_test();
+	return run_ev_test();
 }
