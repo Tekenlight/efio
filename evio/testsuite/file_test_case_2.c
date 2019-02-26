@@ -1,9 +1,11 @@
 #include "ef_io.h"
 #include <stdio.h>
+#include <stdint.h>
 #include <errno.h>
 #include <CuTest.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <ev_globals.h>
 
 static int open_cb_happened[2] = {0,0};
 static int read_cb_happened[2] = {0,0};
@@ -42,6 +44,7 @@ static int all_cb_happened()
 
 static void test_main(CuTest *tc)
 {
+	int retval = 0;
 	int i = 0;
 	int count = 0;
 	int r_fd = -1;
@@ -68,8 +71,8 @@ static void test_main(CuTest *tc)
 
 	ef_set_cb_func(call_back_func,NULL);
 
-	system("rm -f writing_file");
-	system("cp tmpl writing_file");
+	retval = system("rm -f writing_file");
+	retval = system("cp tmpl writing_file");
 	t1 = clock_gettime_nsec_np(CLOCK_REALTIME);
 	r_fd = ef_open("reading_file",O_RDONLY);
 	w_fd = ef_open("writing_file",O_WRONLY|O_CREAT|O_APPEND, S_IRUSR+S_IWUSR+S_IRGRP+S_IROTH);

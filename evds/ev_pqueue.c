@@ -1,6 +1,7 @@
 #include <ev_include.h>
 #include <ev_pqueue.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <time.h>
@@ -75,7 +76,7 @@ static void FIFO_enter(atomic_int * guard, int counter, int N)
 {
 	int lcount = counter  - N;
 	while (lcount != atomic_load_explicit(guard,memory_order_relaxed)) {
-		pthread_yield_np();
+		EV_YIELD();
 		//ev_nanosleep(100);
 	}
 }
@@ -102,7 +103,7 @@ static bool ev_pqueue_is_empty(struct ev_pqueue_s * pq_ptr)
 	if(!pq_ptr) EV_ABORT("");
 	if (test_dec_retest(&(pq_ptr->lb_count))) return false;
 	while (0 < atomic_load_explicit(&(pq_ptr->ub_count),memory_order_relaxed)) {
-		pthread_yield_np();
+		EV_YIELD();
 		//ev_nanosleep(100);
 		if (test_dec_retest(&(pq_ptr->lb_count))) return false;
 	}
@@ -143,7 +144,7 @@ void * dequeue_ev_pqueue(ev_pqueue_type  pq_ptr)
 		first_element =
 			(struct __pis *)atomic_load_explicit(&(pq_ptr->gl_array[index].list.head),memory_order_relaxed);
 		while(first_element == NULL) {
-			pthread_yield_np();
+			EV_YIELD();
 			first_element =
 				(struct __pis *)atomic_load_explicit(&(pq_ptr->gl_array[index].list.head),memory_order_relaxed);
 		}
@@ -158,7 +159,7 @@ void * dequeue_ev_pqueue(ev_pqueue_type  pq_ptr)
 				/* First element is no longer tail. Concurrent enqueue is detected. */
 				/* Wait until next of first is not NULL. */
 				while (!(first_element->next)) {
-					pthread_yield_np();
+					EV_YIELD();
 				}
 				/* This may be redundant. */
 				atomic_store_explicit(&(pq_ptr->gl_array[index].list.head),(first_element->next),memory_order_relaxed);

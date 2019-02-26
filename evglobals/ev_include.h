@@ -12,7 +12,7 @@ int noprintf(char * s, ...)
 */
 
 #define EV_ABORT(...) { \
-	printf("[%p]:[%s:%d] ABORTING:",pthread_self(),__FILE__,__LINE__);fflush(stdout); \
+	printf("[%p]:[%s:%d] ABORTING:",(void*)pthread_self(),__FILE__,__LINE__);fflush(stdout); \
 	printf(__VA_ARGS__); printf("\n");fflush(stdout); \
 	perror("SYSERR:"); \
 	abort(); \
@@ -22,11 +22,11 @@ int noprintf(char * s, ...)
 #ifdef EV_DEBUG
 
 #define EV_DBG() { \
-	printf("[%p][%s:%d] Reached\n",pthread_self(),__FILE__,__LINE__);fflush(stdout); \
+	printf("[%p][%s:%d] Reached\n",(void*)pthread_self(),__FILE__,__LINE__);fflush(stdout); \
 }
 
 #define EV_DBGP(...) { \
-	printf("[%p][%s:%d] Reached:",pthread_self(),__FILE__,__LINE__); \
+	printf("[%p][%s:%d] Reached:",(void*)pthread_self(),__FILE__,__LINE__); \
 	printf(__VA_ARGS__);fflush(stdout); \
 }
 
@@ -64,4 +64,20 @@ int noprintf(char * s, ...)
 #endif
 
 #endif
+
+
+
+#ifdef EV_YIELD
+#undef EV_YIELD
+#endif
+
+#ifdef TARGET_OS_OSX
+#define EV_YIELD() pthread_yield_np()
+#elif defined _WIN32
+#define EV_YIELD() sleep(0);
+#else
+#define EV_YIELD()  pthread_yield();
+#endif
+
+
 #endif

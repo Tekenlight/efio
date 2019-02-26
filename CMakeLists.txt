@@ -55,7 +55,15 @@ if(CMAKE_BUILD_TYPE STREQUAL "")
     set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
+message(STATUS "HI ${CMAKE_HOST_SYSTEM_NAME}")
+if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+	string(APPEND CMAKE_C_FLAGS "-D_GNU_SOURCE -Wno-format-zero-length -DEV_DEBUG")
+	string(APPEND CMAKE_EXE_LINKER_FLAGS "-pthread")
+endif()
+
 include(PocoMacros)
+#include(GNU)
+
 
 option(EF_STATIC "Set to OFF|ON (default is OFF) " OFF)
 

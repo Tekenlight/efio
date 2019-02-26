@@ -3,6 +3,7 @@
 #include <ev_piqueue.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -114,7 +115,7 @@ static void FIFO_enter(atomic_int * guard, int counter, int N)
 {
 	int lcount = counter  - N;
 	while (lcount != atomic_load_explicit(guard,memory_order_relaxed)) {
-		pthread_yield_np();
+		EV_YIELD();
 		//ev_nanosleep(100);
 	}
 }
@@ -123,32 +124,6 @@ static void FIFO_exit(atomic_int * guard, int counter)
 {
 	atomic_store_explicit(guard,counter,memory_order_relaxed);
 }
-
-/*
-static bool test_dec_retest(atomic_int *val)
-{
-	bool result = (atomic_load_explicit(val,memory_order_relaxed)>0);
-	if (result) {
-		if (atomic_fetch_add_explicit(val,-1,memory_order_relaxed) <= 0) {
-			atomic_fetch_add_explicit(val,1,memory_order_relaxed);
-			result = false;
-		}
-	}
-	return result;
-}
-
-static bool ev_piqueue_is_empty(struct ev_piqueue_s * pq_ptr)
-{
-	if(!pq_ptr) EV_ABORT("");
-	if (test_dec_retest(&(pq_ptr->lb_count))) return false;
-	while (0 < atomic_load_explicit(&(pq_ptr->ub_count),memory_order_relaxed)) {
-		pthread_yield_np();
-		//ev_nanosleep(100);
-		if (test_dec_retest(&(pq_ptr->lb_count))) return false;
-	}
-	return true;
-}
-*/
 
 int ev_piqueue_peek(struct ev_piqueue_s * pq_ptr)
 {
@@ -191,7 +166,7 @@ void * dequeue_ev_piqueue(ev_piqueue_type  pq_ptr)
 		*/
 		if (-1 == basic_try_dequeue(pq_ptr->gl_array[index],&return_data)) {
 			//atomic_fetch_add_explicit(&miss_count,1,memory_order_relaxed);
-			pthread_yield_np();
+			EV_YIELD();
 			i = 0;
 		}
 		else {
@@ -249,7 +224,7 @@ void enqueue_ev_piqueue(ev_piqueue_type pq_ptr,void * data)
 		if (!basic_enqueue(pq_ptr->gl_array[st_index],data)) break;
 		st_index++;
 		st_index = st_index % pq_ptr->N;
-		pthread_yield_np();
+		EV_YIELD();
 	}
 	//EV_DBG(__FILE__,__LINE__);
 	atomic_fetch_add_explicit(&succ_count,1,memory_order_relaxed);
