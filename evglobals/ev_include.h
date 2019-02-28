@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <errno.h>
 /*
 int noprintf(char * s, ...)
 {
@@ -14,6 +15,7 @@ int noprintf(char * s, ...)
 #define EV_ABORT(...) { \
 	printf("[%p]:[%s:%d] ABORTING:",(void*)pthread_self(),__FILE__,__LINE__);fflush(stdout); \
 	printf(__VA_ARGS__); printf("\n");fflush(stdout); \
+	printf("ERRNO:%d\n",errno); \
 	perror("SYSERR:"); \
 	abort(); \
 }
