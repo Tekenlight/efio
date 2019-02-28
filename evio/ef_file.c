@@ -134,7 +134,9 @@ static void ef_file_open(void * data)
 
 	if (O_CREAT&(file_ptr->_action->_inp._open_inp._oflag)) {
 #ifdef __linux__
-		file_ptr->_action->_inp._open_inp._oflag |= O_DIRECT;
+		if (!(O_APPEND&file_ptr->_action->_inp._open_inp._oflag)) {
+			file_ptr->_action->_inp._open_inp._oflag |= O_DIRECT;
+		}
 #endif
 		file_ptr->_fd = open(file_ptr->_action->_inp._open_inp._path,
 							file_ptr->_action->_inp._open_inp._oflag,
@@ -142,9 +144,7 @@ static void ef_file_open(void * data)
 	}
 	else {
 #ifdef __linux__
-		if (!(O_APPEND&file_ptr->_action->_inp._open_inp._oflag)) {
-			file_ptr->_action->_inp._open_inp._oflag |= O_DIRECT;
-		}
+		file_ptr->_action->_inp._open_inp._oflag |= O_DIRECT;
 #endif
 		file_ptr->_fd = open(file_ptr->_action->_inp._open_inp._path,
 							file_ptr->_action->_inp._open_inp._oflag);
@@ -162,20 +162,15 @@ static void ef_file_open(void * data)
 		file_ptr->_file_offset = 0;
 		file_ptr->_block_write_unaligned = 0;
 		file_ptr->_oflag = file_ptr->_action->_inp._open_inp._oflag;
-			EV_DBGP("Here passed = %0#x\n",file_ptr->_action->_inp._open_inp._oflag);
-			EV_DBGP("Here noted = %0#x\n",file_ptr->_oflag);
 		if ((O_WRONLY&file_ptr->_oflag) && (O_APPEND&file_ptr->_oflag)) {
-			EV_DBGP("Here\n");
 			file_ptr->_file_offset = lseek(file_ptr->_fd,0,SEEK_END);
 		}
 		if (file_ptr->_file_offset % sg_page_size) {
 			file_ptr->_block_write_unaligned = 1;
-			EV_DBGP("Here\n");
 		}
 		file_ptr->_buf._buffer_index = (file_ptr->_file_offset / sg_page_size);
 	}
 
-	EV_DBGP("errno = %d\n",errno);
 	file_ptr->_action->_return_value = file_ptr->_fd;
 	file_ptr->_action->_err = errno;
 	file_ptr->_action->_action_status = ACTION_COMPLETE;
@@ -761,6 +756,7 @@ static int ef_process_read_action_status(EF_FILE *file_ptr)
 ssize_t chk_read_conditions(int fd, void * buf, size_t nbyte)
 {
 	errno = 0;
+	int flg = 0;
 	if (!sg_ef_init_done) {
 		errno = EBADF;
 		EV_ABORT("INIT NOT DONE");
@@ -782,7 +778,9 @@ ssize_t chk_read_conditions(int fd, void * buf, size_t nbyte)
 		/* End of file has been reached. */
 		return 0;
 	}
-	if (!(sg_open_files[fd]->_oflag&(O_RDWR)) && (sg_open_files[fd]->_oflag != O_RDONLY)) {
+	flg = sg_open_files[fd]->_oflag;
+	if (flg & O_DIRECT) flg ^= O_DIRECT;
+	if (!(flg&(O_RDWR)) && (flg != O_RDONLY)) {
 		/* File opened without write access. */
 		errno = EBADF;
 		return -1;
@@ -1313,6 +1311,13 @@ static int ef_one_single_write(EF_FILE *file_ptr, struct write_task_s * w_t)
 			file_ptr->_curr_file_size_on_disk += transfer_size;
 			file_ptr->_running_file_size += transfer_size;
 			if (page_offset == sg_page_size) {
+#ifdef __linux__
+				{
+					int flg = fcntl(file_ptr->_fd,F_GETFL);
+					flg |= O_DIRECT;
+					fcntl(file_ptr->_fd,F_SETFL,flg);
+				}
+#endif
 				file_ptr->_block_write_unaligned = 0;
 				page_offset = 0;
 				file_ptr->_buf._is_dirty = 0;
@@ -1437,6 +1442,7 @@ static ssize_t low_ef_write(EF_FILE * file_ptr, void * buf, size_t nbyte)
 				file_ptr->_action->_inp._write_inp._w_accum._data = malloc(sg_page_size);
 				memset(file_ptr->_action->_inp._write_inp._w_accum._data,0,sg_page_size);
 			}
+
 
 			size_t space_in_the_page = sg_page_size - file_ptr->_action->_inp._write_inp._w_accum._bytes;
 			size_t to_be_copied = (remaining_bytes > space_in_the_page)?space_in_the_page:remaining_bytes;
