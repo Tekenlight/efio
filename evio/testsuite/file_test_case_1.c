@@ -48,7 +48,6 @@ static void test_main(CuTest *tc)
 	r_fd = ef_open("reading_file",O_RDONLY);
 	w_fd = ef_open("writing_file",O_WRONLY|O_CREAT|O_APPEND, S_IRUSR+S_IWUSR+S_IRGRP+S_IROTH);
 
-	EV_DBGP("w_fd opened with %#x\n",O_WRONLY|O_CREAT|O_APPEND);
 	status = ef_open_status(r_fd);
 	while (-1 == status && errno == EAGAIN) {
 		usleep(1);
@@ -67,9 +66,6 @@ static void test_main(CuTest *tc)
 		EV_ABORT("Some error");
 	}
 
-	EV_DBGP("Read fd = %d\n",r_fd);
-	EV_DBGP("Write fd = %d\n",w_fd);
-
 	int ret = 0;
 	int j = 0;
 	while (1) {
@@ -77,6 +73,7 @@ static void test_main(CuTest *tc)
 		ret = 0;
 		while ((0>(ret = ef_read(r_fd,data,9999))) && errno == EAGAIN) {
 		}
+		if (ret < 0) { EV_ABORT("WRONG ret = %d\n",ret); }
 		if (!ret) break;
 		ef_write(w_fd,data,ret);
 		memset(data,0,4097);
