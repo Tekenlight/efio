@@ -1,13 +1,10 @@
 #include <stdio.h>
-#ifdef NEVER
-#include <stdio.h>
-#endif
-
 #include <ev_include.h>
 #include <ev_queue.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdatomic.h>
 
 struct ev_queue_s {
@@ -116,13 +113,7 @@ int try_dequeue(struct ev_queue_s * q_ptr , void ** retptrptr)
 		else {
 			return -1;
 		}
-#ifdef TARGET_OS_OSX
-		pthread_yield_np();
-#elif defined _WIN32
-		sleep(0);
-#else
-		pthread_yield();
-#endif
+		EV_YIELD();
 	} while (true);
 
 	new_h = old_h;
@@ -146,13 +137,7 @@ int try_dequeue(struct ev_queue_s * q_ptr , void ** retptrptr)
 			// Repeat as long as next header is null.
 			do {
 				next = atomic_load_explicit(&(((struct __s *)(new_h))->next),memory_order_relaxed);
-#ifdef TARGET_OS_OSX
-		pthread_yield_np();
-#elif defined _WIN32
-		sleep(0);
-#else
-		pthread_yield();
-#endif
+				EV_YIELD();
 			} while (!next);
 		}
 	}
@@ -202,7 +187,7 @@ void * dequeue(struct ev_queue_s * q_ptr)
 		}
 		old_h = atomic_load_explicit(&(q_ptr->head),memory_order_relaxed);
 		if (!old_h) {
-			pthread_yield_np();
+			EV_YIELD();
 			continue;
 		}
 		if (!(1&old_h)) {
@@ -213,13 +198,7 @@ void * dequeue(struct ev_queue_s * q_ptr)
 				break;
 			}
 		}
-#ifdef TARGET_OS_OSX
-		pthread_yield_np();
-#elif defined _WIN32
-		sleep(0);
-#else
-		pthread_yield();
-#endif
+		EV_YIELD();
 	} while (true);
 
 	new_h = old_h;
@@ -244,13 +223,7 @@ void * dequeue(struct ev_queue_s * q_ptr)
 			// Repeat as long as next header is null.
 			do {
 				next = atomic_load_explicit(&(((struct __s *)(new_h))->next),memory_order_relaxed);
-#ifdef TARGET_OS_OSX
-		pthread_yield_np();
-#elif defined _WIN32
-		sleep(0);
-#else
-		pthread_yield();
-#endif
+				EV_YIELD();
 			} while (!next);
 		}
 	}

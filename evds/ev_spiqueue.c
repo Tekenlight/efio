@@ -3,6 +3,7 @@
 #include <ev_piqueue.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -117,7 +118,7 @@ static void FIFO_enter(atomic_int * guard, int counter, int N)
 {
 	int lcount = counter  - N;
 	while (lcount != atomic_load_explicit(guard,memory_order_relaxed)) {
-		pthread_yield_np();
+		EV_YIELD();
 		//ev_nanosleep(100);
 	}
 }
@@ -162,7 +163,7 @@ void * dequeue_ev_piqueue(ev_piqueue_type  pq_ptr)
 		*/
 		if (-1 == basic_try_dequeue(pq_ptr->gl_array[index],&return_data)) {
 			//atomic_fetch_add_explicit(&miss_count,1,memory_order_relaxed);
-			pthread_yield_np();
+			EV_YIELD();
 			i = 0;
 		}
 		else {
@@ -220,7 +221,7 @@ void enqueue_ev_piqueue(ev_piqueue_type pq_ptr,void * data)
 		if (!basic_enqueue(pq_ptr->gl_array[st_index],data)) break;
 		st_index++;
 		st_index = st_index % pq_ptr->N;
-		pthread_yield_np();
+		EV_YIELD();
 	}
 	//EV_DBG(__FILE__,__LINE__);
 	atomic_fetch_add_explicit(&succ_count,1,memory_order_relaxed);

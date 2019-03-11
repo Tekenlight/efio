@@ -75,7 +75,7 @@ static void * thread_loop(void *data)
 	pool = ((struct thr_inp_data_s *)data)->_pool;
 	thr_index = ((struct thr_inp_data_s *)data)->_thr_index;
 	free(data);
-	data = NULL;
+	data = NULL; //Seems to be giving problem in Ubuntu
 
 	pool->_threads[thr_index]._state = THREAD_FREE;
 	for (;;) {
@@ -91,24 +91,24 @@ static void * thread_loop(void *data)
 				slept_count++;
 				if (pool->_threads[thr_index]._subscribed) {
 					if (i>pool->_alwd_busy_waits) usleep(sleeping_time);
-					else pthread_yield_np();
+					else EV_YIELD();
 				}
 				pool->_threads[thr_index]._subscribed = false;
 
 				qe = dequeue(pool->_task_queue);
 				if (qe) {
-					if (!(qe->_task_function)) {
-						s = 1;
-					}
 					break;
 				}
 				s = atomic_load_explicit(&(pool->_shutdown),memory_order_relaxed);
 				if ((sleeping_time + pool->_min_sleep_usec)<pool->_max_sleep_usec) i++;
 			}
 		}
-		if (s) break;
+		if (!(qe->_task_function)) {
+			break;
+		}
 		atomic_thread_fence(memory_order_acq_rel);
 		pool->_threads[thr_index]._state = THREAD_BUSY;
+		if (!(qe->_task_function)) EV_ABORT("Task function cannot be null. ");
 		(*(qe->_task_function))(qe->_arg);
 		free(qe);
 		atomic_fetch_add(&(pool->_threads[thr_index]._task_count),1);
@@ -126,8 +126,8 @@ struct thread_pool_s * create_thread_pool(int num_threads)
 	pthread_attr_t attr;
 
 	pthread_attr_init(&attr);
-	pthread_attr_setschedpolicy(&attr,SCHED_RR);
-	pthread_attr_setinheritsched(&attr,PTHREAD_EXPLICIT_SCHED);
+	//pthread_attr_setschedpolicy(&attr,SCHED_RR);
+	//pthread_attr_setinheritsched(&attr,PTHREAD_EXPLICIT_SCHED);
 
 	if (0>=num_threads) {
 		errno = EINVAL;
@@ -153,6 +153,7 @@ struct thread_pool_s * create_thread_pool(int num_threads)
 			data->_thr_index = i;
 			if (pthread_create(&pool->_threads[i]._t,&attr,thread_loop,data)) {
 				destroy_thread_pool(pool);
+				EV_ABORT("Could not create thread \n");
 				return NULL;
 			}
 			pool->_threads[i]._state = THREAD_FREE;
@@ -226,7 +227,8 @@ int destroy_thread_pool(struct thread_pool_s *pool)
 	wake_all_threads(pool,0);
 
 	for (int i=0;i<pool->_num_threads ; i++) {
-		pthread_join(pool->_threads[i]._t,NULL);
+		if (pthread_join(pool->_threads[i]._t,NULL))
+			EV_ABORT("pthread_join failed");
 	}
 
 	free_thread_pool(pool);

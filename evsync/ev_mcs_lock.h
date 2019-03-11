@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <ev_include.h>
+#include <stdint.h>
 
 
 typedef atomic_uintptr_t ev_mcs_lock_type;

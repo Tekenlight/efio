@@ -26,6 +26,7 @@ void call_back_func(int fd, int oper,  void *cb_data)
 
 static void test_main(CuTest *tc)
 {
+	int retval = 0;
 	char str[10000] = {'\0'};
 	int read_fd[100] = {0};
 	int write_fd[100] = {0};
@@ -33,9 +34,9 @@ static void test_main(CuTest *tc)
 
 	memset(&wf_data,0,sizeof(struct stat));
 
-	system("rm -f writing_file");
-	system("rm -Rf output");
-	system("mkdir output");
+	retval = system("rm -f writing_file");
+	retval = system("rm -Rf output");
+	retval = system("mkdir output");
 
 	ef_init();
 	ef_set_cb_func(call_back_func,NULL);

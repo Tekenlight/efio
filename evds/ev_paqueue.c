@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdatomic.h>
 
 struct qn_s {
@@ -133,7 +134,7 @@ void * dequeue_evpaq(struct ev_paqueue_s * q_ptr)
 		++try_count;
 		old_t = atomic_load_explicit(&(q_ptr->qa[index].tail),memory_order_relaxed);
 		if (!old_t) {
-			//pthread_yield_np();
+			//EV_YIELD();
 			continue;	
 		}
 		/* Here we know that the queue is not empty. */
@@ -142,7 +143,7 @@ void * dequeue_evpaq(struct ev_paqueue_s * q_ptr)
 		{
 			old_h = atomic_load_explicit(&(q_ptr->qa[index].head),memory_order_relaxed);
 			if (!old_h) {
-				pthread_yield_np();
+				EV_YIELD();
 				continue;
 			}
 			if (!(1&old_h)) {
@@ -155,7 +156,7 @@ void * dequeue_evpaq(struct ev_paqueue_s * q_ptr)
 					break;
 				}
 			}
-			pthread_yield_np();
+			EV_YIELD();
 		}
 	}
 
@@ -182,13 +183,7 @@ void * dequeue_evpaq(struct ev_paqueue_s * q_ptr)
 			// Repeat as long as next header is null.
 			do {
 				next = atomic_load_explicit(&(((struct __s *)(new_h))->next),memory_order_relaxed);
-#ifdef TARGET_OS_OSX
-		pthread_yield_np();
-#elif defined _WIN32
-		sleep(0);
-#else
-		pthread_yield();
-#endif
+				EV_YIELD();
 			} while (!next);
 		}
 	}

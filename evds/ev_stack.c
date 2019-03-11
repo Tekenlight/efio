@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdint.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdatomic.h>

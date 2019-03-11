@@ -1,6 +1,8 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <ev_include.h>
+#include <ev_globals.h>
 #include <ef_io.h>
 #include <time.h>
 #include <sys/stat.h>
@@ -15,6 +17,7 @@ static void print_queue_node(void * data)
 
 static void test_main(CuTest *tc)
 {
+	int retval = 0;
 	int i = 0;
 	int count = 0;
 	int r_fd = -1;
@@ -39,8 +42,8 @@ static void test_main(CuTest *tc)
 
 	ef_init();
 
-	system("rm -f writing_file");
-	system("cp tmpl writing_file");
+	retval = system("rm -f writing_file");
+	retval = system("cp tmpl writing_file");
 	t1 = clock_gettime_nsec_np(CLOCK_REALTIME);
 	r_fd = ef_open("reading_file",O_RDONLY);
 	w_fd = ef_open("writing_file",O_WRONLY|O_CREAT|O_APPEND, S_IRUSR+S_IWUSR+S_IRGRP+S_IROTH);
@@ -70,6 +73,7 @@ static void test_main(CuTest *tc)
 		ret = 0;
 		while ((0>(ret = ef_read(r_fd,data,9999))) && errno == EAGAIN) {
 		}
+		if (ret < 0) { EV_ABORT("WRONG ret = %d\n",ret); }
 		if (!ret) break;
 		ef_write(w_fd,data,ret);
 		memset(data,0,4097);

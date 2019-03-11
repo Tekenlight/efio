@@ -39,6 +39,7 @@ void * enq(void *data)
 
 int run_ev_globals_test()
 {
+	void * retval;
 	struct thread_pool_s *pool = NULL;
 	int N = 2000000;
 	int THREADS = 4;
@@ -58,6 +59,12 @@ int run_ev_globals_test()
 	pthread_join(t2,NULL);
 	pthread_join(t3,NULL);
 	pthread_join(t4,NULL);
+	/*
+	retval = enq(&s);
+	retval = enq(&s);
+	retval = enq(&s);
+	retval = enq(&s);
+	*/
 	{
 		int i = 0;
 		total = 0;
@@ -65,7 +72,7 @@ int run_ev_globals_test()
 	}
 
 	while (total < N) {
-		pthread_yield_np();
+		EV_YIELD();
 		{
 			int i = 0;
 			total = 0;

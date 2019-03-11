@@ -1,17 +1,18 @@
 #include <stdio.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdatomic.h>
+#include <pthread.h>
+#include <thread_pool.h>
+#include <sys/stat.h>
 
 #include <ev_globals.h>
 #include <ef_io.h>
 #include <ef_internals.h>
 #include <ev_spin_lock.h>
 #include <ev_queue.h>
-#include <pthread.h>
-#include <thread_pool.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <string.h>
-#include <stdatomic.h>
 
 typedef enum {
 	fw_invalid_evt=0,
@@ -98,11 +99,19 @@ static void ef_file_open(void * data)
 	file_ptr->_action->_action_status = ACTION_IN_PROGRESS;
 
 	if (O_CREAT&(file_ptr->_action->_inp._open_inp._oflag)) {
+#ifdef __linux__
+		if (!(O_APPEND&file_ptr->_action->_inp._open_inp._oflag)) {
+			file_ptr->_action->_inp._open_inp._oflag |= O_DIRECT;
+		}
+#endif
 		file_ptr->_fd = open(file_ptr->_action->_inp._open_inp._path,
 							file_ptr->_action->_inp._open_inp._oflag,
 							file_ptr->_action->_inp._open_inp._mode);
 	}
 	else {
+#ifdef __linux__
+		file_ptr->_action->_inp._open_inp._oflag |= O_DIRECT;
+#endif
 		file_ptr->_fd = open(file_ptr->_action->_inp._open_inp._path,
 							file_ptr->_action->_inp._open_inp._oflag);
 	}
@@ -110,7 +119,9 @@ static void ef_file_open(void * data)
 	if (file_ptr->_fd >= 0) {
 		struct stat buf;
 		//fcntl(file_ptr->_fd,F_GLOBAL_NOCACHE,1);
+#ifdef __APPLE__
 		fcntl(file_ptr->_fd,F_NOCACHE,1);
+#endif
 		fstat(file_ptr->_fd,&buf);
 		file_ptr->_orig_file_size_on_disk = file_ptr->_curr_file_size_on_disk = buf.st_size;
 		file_ptr->_running_file_size = file_ptr->_curr_file_size_on_disk;
@@ -215,7 +226,7 @@ static int ef_close_api(int fd , bool immediate)
 	SET_WRITE_ACTION_STATUS(sg_open_files[fd]->_action);
 	while (sg_open_files[fd]->_action && sg_open_files[fd]->_action->_action_status != ACTION_COMPLETE) {
 
-		pthread_yield_np();
+		EV_YIELD();
 		atomic_thread_fence(memory_order_acquire);
 		SET_WRITE_ACTION_STATUS(sg_open_files[fd]->_action);
 	}
@@ -269,7 +280,10 @@ static void ef_file_read_ahead(void *data)
 		buf_list_ptr->_next = NULL;
 		/* This memory is freed in the function ef_read and ef_file_close.
 		 * Along with freeing of _buffer. */
-		posix_memalign(&(buf_list_ptr->_buf),sg_page_size,sg_page_size);
+		{
+			if (posix_memalign(&(buf_list_ptr->_buf),sg_page_size,sg_page_size))
+				EV_ABORT("Cannot allocate memory");
+		}
 		//memset(buf_list_ptr->_buf,0,sg_page_size);
 
 		buf_list_ptr->_nbyte = pread(file_ptr->_fd,buf_list_ptr->_buf, sg_page_size, page_no*sg_page_size);
@@ -308,7 +322,10 @@ static void ef_file_read(void *data)
 	/* This buffer is freed in ef_read. */
 	if (!file_ptr->_buf._buffer) {
 		buf_was_empty = 1;
-		posix_memalign(&(file_ptr->_buf._buffer),sg_page_size,sg_page_size);
+		{
+			if (posix_memalign(&(file_ptr->_buf._buffer),sg_page_size,sg_page_size))
+				EV_ABORT("Cannot allocate memory");
+		}
 	}
 	//memset(file_ptr->_buf._buffer,0,sg_page_size);
 
@@ -464,6 +481,7 @@ static int ef_process_read_action_status(EF_FILE *file_ptr)
 ssize_t chk_read_conditions(int fd, void * buf, size_t nbyte)
 {
 	errno = 0;
+	int flg = 0;
 	if (!sg_ef_init_done) {
 		errno = EBADF;
 		EV_ABORT("INIT NOT DONE");
@@ -485,7 +503,9 @@ ssize_t chk_read_conditions(int fd, void * buf, size_t nbyte)
 		/* End of file has been reached. */
 		return 0;
 	}
-	if (!(sg_open_files[fd]->_oflag&(O_RDWR)) && (sg_open_files[fd]->_oflag != O_RDONLY)) {
+	flg = sg_open_files[fd]->_oflag;
+	if (flg & O_DIRECT) flg ^= O_DIRECT;
+	if (!(flg&(O_RDWR)) && (flg != O_RDONLY)) {
 		/* File opened without write access. */
 		errno = EBADF;
 		return -1;
@@ -722,7 +742,7 @@ static void sync_file_writes(int fd)
 	if (file_ptr->_action && file_ptr->_action->_cmd != oper_write) {
 		atomic_thread_fence(memory_order_acquire);
 		while (file_ptr->_action->_action_status != ACTION_COMPLETE) {
-			pthread_yield_np();
+			EV_YIELD();
 			atomic_thread_fence(memory_order_acquire);
 		}
 	}
@@ -890,7 +910,7 @@ static void file_writer(void * data)
 			if (sigismember(&r_set,SIGINT)) usleep(10);
 			/* sigwait seems to not perform very well in OSX no particular evidence to this */
 			//sigwait(&set,&sig);
-			pthread_yield_np();
+			EV_YIELD();
 		}
 	}
 
@@ -901,7 +921,9 @@ static void sync_buf_from_file(EF_FILE *file_ptr)
 {
 	struct data_buf_s * buf_list_ptr = NULL;
 
-	if (!file_ptr->_buf._buffer) posix_memalign(&(file_ptr->_buf._buffer),sg_page_size,sg_page_size);
+	if (!file_ptr->_buf._buffer) {
+		if (posix_memalign(&(file_ptr->_buf._buffer),sg_page_size,sg_page_size)) EV_ABORT("Cannot allocate memory");
+	}
 	//memset(file_ptr->_buf._buffer,0,sg_page_size);
 	file_ptr->_buf._is_dirty = 0;
 	if ((file_ptr->_buf._buffer_index * sg_page_size) < file_ptr->_curr_file_size_on_disk) {
@@ -942,7 +964,7 @@ static void sync_buf_to_file(EF_FILE *file_ptr)
 			EV_ABORT("Cannot handle this error\n");fflush(stdout);
 		}
 		//fcntl(file_ptr->_fd,F_FULLFSYNC);
-		ftruncate(file_ptr->_fd,file_ptr->_running_file_size);
+		if (ftruncate(file_ptr->_fd,file_ptr->_running_file_size)) EV_ABORT("ftruncate call failed");
 		file_ptr->_buf._is_dirty = 0;
 	}
 	return;
@@ -1003,6 +1025,13 @@ static int ef_one_single_write(EF_FILE *file_ptr, struct write_task_s * w_t)
 			file_ptr->_curr_file_size_on_disk += transfer_size;
 			file_ptr->_running_file_size += transfer_size;
 			if (page_offset == sg_page_size) {
+#ifdef __linux__
+				{
+					int flg = fcntl(file_ptr->_fd,F_GETFL);
+					flg |= O_DIRECT;
+					fcntl(file_ptr->_fd,F_SETFL,flg);
+				}
+#endif
 				file_ptr->_block_write_unaligned = 0;
 				page_offset = 0;
 				file_ptr->_buf._is_dirty = 0;
@@ -1127,6 +1156,7 @@ static ssize_t low_ef_write(EF_FILE * file_ptr, void * buf, size_t nbyte)
 				file_ptr->_action->_inp._write_inp._w_accum._data = malloc(sg_page_size);
 				memset(file_ptr->_action->_inp._write_inp._w_accum._data,0,sg_page_size);
 			}
+
 
 			size_t space_in_the_page = sg_page_size - file_ptr->_action->_inp._write_inp._w_accum._bytes;
 			size_t to_be_copied = (remaining_bytes > space_in_the_page)?space_in_the_page:remaining_bytes;
