@@ -510,7 +510,7 @@ ssize_t chk_read_conditions(int fd, void * buf, size_t nbyte)
 		return -1;
 	}
 #ifdef __linux__
-	if ((flg & O_DIRECT) && (0 == (sg_open_files[fd]->_file_offset % sg_page_size)))) flg ^= O_DIRECT;
+	if ((flg & O_DIRECT) && (0 == (sg_open_files[fd]->_file_offset % sg_page_size))) flg ^= O_DIRECT;
 #endif
 
 	return 1;
