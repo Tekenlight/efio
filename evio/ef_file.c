@@ -504,12 +504,14 @@ ssize_t chk_read_conditions(int fd, void * buf, size_t nbyte)
 		return 0;
 	}
 	flg = sg_open_files[fd]->_oflag;
-	if (flg & O_DIRECT) flg ^= O_DIRECT;
 	if (!(flg&(O_RDWR)) && (flg != O_RDONLY)) {
-		/* File opened without write access. */
+		/* File opened without read access. */
 		errno = EBADF;
 		return -1;
 	}
+#ifdef __linux__
+	if ((flg & O_DIRECT) && (0 == (sg_open_files[fd]->_file_offset % sg_page_size)))) flg ^= O_DIRECT;
+#endif
 
 	return 1;
 }
