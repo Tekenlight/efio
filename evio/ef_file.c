@@ -100,7 +100,11 @@ static void ef_file_open(void * data)
 
 	if (O_CREAT&(file_ptr->_action->_inp._open_inp._oflag)) {
 #ifdef __linux__
-		if (!(O_APPEND&file_ptr->_action->_inp._open_inp._oflag)) {
+		//EV_DBGP("Here\n");
+		//EV_DBGP("file_ptr->_action->_inp._open_inp._oflag = %0#X\n",file_ptr->_action->_inp._open_inp._oflag);
+		//EV_DBGP("O_APPEND|O_WRONLY = %0#X\n",O_APPEND|O_WRONLY);
+		//EV_DBGP("BITWISE ANDED = %0#X\n",(O_APPEND|O_WRONLY)&(file_ptr->_action->_inp._open_inp._oflag));
+		if (!((O_APPEND|O_WRONLY)&(file_ptr->_action->_inp._open_inp._oflag))) {
 			file_ptr->_action->_inp._open_inp._oflag |= O_DIRECT;
 		}
 #endif
@@ -110,7 +114,9 @@ static void ef_file_open(void * data)
 	}
 	else {
 #ifdef __linux__
-		file_ptr->_action->_inp._open_inp._oflag |= O_DIRECT;
+		if (!((O_APPEND|O_WRONLY)&file_ptr->_action->_inp._open_inp._oflag)) {
+			file_ptr->_action->_inp._open_inp._oflag |= O_DIRECT;
+		}
 #endif
 		file_ptr->_fd = open(file_ptr->_action->_inp._open_inp._path,
 							file_ptr->_action->_inp._open_inp._oflag);
@@ -130,9 +136,16 @@ static void ef_file_open(void * data)
 		file_ptr->_oflag = file_ptr->_action->_inp._open_inp._oflag;
 		if ((O_WRONLY&file_ptr->_oflag) && (O_APPEND&file_ptr->_oflag)) {
 			file_ptr->_file_offset = lseek(file_ptr->_fd,0,SEEK_END);
-		}
-		if (file_ptr->_file_offset % sg_page_size) {
-			file_ptr->_block_write_unaligned = 1;
+			if (file_ptr->_file_offset % sg_page_size) {
+				file_ptr->_block_write_unaligned = 1;
+			}
+#ifdef __linux__
+			else {
+				int flg = fcntl(file_ptr->_fd,F_GETFL);
+				flg |= O_DIRECT;
+				fcntl(file_ptr->_fd,F_SETFL,flg);
+			}
+#endif
 		}
 		file_ptr->_buf._buffer_index = (file_ptr->_file_offset / sg_page_size);
 	}
@@ -263,8 +276,6 @@ static void ef_file_read_ahead(void *data)
 	off_t offset = file_read_ptr->_curr_page_no * sg_page_size;
 	int	which = file_read_ptr->_which;
 	long page_no = file_read_ptr->_curr_page_no + which;
-
-	//EV_DBGP("[%s:%d] Reached page_no = [%ld]\n",__FILE__,__LINE__,page_no);fflush(stdout);
 
 	int ret = 0;
 	struct data_buf_s * buf_list_ptr = NULL;
@@ -504,14 +515,14 @@ ssize_t chk_read_conditions(int fd, void * buf, size_t nbyte)
 		return 0;
 	}
 	flg = sg_open_files[fd]->_oflag;
+#ifdef __linux__
+	if (flg & O_DIRECT) flg ^= O_DIRECT;
+#endif
 	if (!(flg&(O_RDWR)) && (flg != O_RDONLY)) {
 		/* File opened without read access. */
 		errno = EBADF;
 		return -1;
 	}
-#ifdef __linux__
-	if ((flg & O_DIRECT) && (0 == (sg_open_files[fd]->_file_offset % sg_page_size))) flg ^= O_DIRECT;
-#endif
 
 	return 1;
 }
@@ -523,8 +534,13 @@ static ssize_t low_ef_read(int fd, void * buf, size_t nbyte)
 	size_t		transfer_size = 0;
 	EF_FILE		*file_ptr = NULL;
 
-	if ((ret = chk_read_conditions(fd,buf,nbyte)) <= 0)  return ret;
+	if ((ret = chk_read_conditions(fd,buf,nbyte)) <= 0) {
+		//EV_DBGP("Here fd = [%d]\n",fd);
+		return ret;
+	}
 	ret = 0;
+
+	//EV_DBGP("Here\n");
 
 	file_ptr = sg_open_files[fd];
 	page_offset = file_ptr->_file_offset - (file_ptr->_buf._buffer_index * sg_page_size);
@@ -664,7 +680,7 @@ static void ef_file_write(void * data)
 	while(w_t) {
 		errno = 0;
 		if (w_t->_cmd == file_write_evt) bytes_transfered += ef_one_single_write(file_ptr,w_t);
-		else ef_file_fsync(file_ptr);
+		else if (w_t->_cmd == file_fsync_evt)  ef_file_fsync(file_ptr);
 		w_t = w_t->_next;
 	}
 
@@ -984,10 +1000,14 @@ static int ef_one_single_write(EF_FILE *file_ptr, struct write_task_s * w_t)
 	if (file_ptr->_oflag&O_APPEND) {
 		/* If the file position is not at the end. */
 		if (!(file_ptr->_buf._is_dirty)) {
-			//if (file_ptr->_buf._buffer) memset(file_ptr->_buf._buffer,0,sg_page_size);
+			int old_buffer_index = file_ptr->_buf._buffer_index;
 			file_ptr->_buf._buffer_index = 0;
 			file_ptr->_file_offset = lseek(file_ptr->_fd,0,SEEK_END);
 			file_ptr->_buf._buffer_index = (file_ptr->_file_offset / sg_page_size);
+			if (old_buffer_index != file_ptr->_buf._buffer_index) {
+				free(file_ptr->_buf._buffer);
+				file_ptr->_buf._buffer = NULL;
+			}
 		}
 		else {
 			if (file_ptr->_buf._buffer_index != (file_ptr->_curr_file_size_on_disk / sg_page_size)) {
