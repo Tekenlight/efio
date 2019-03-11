@@ -40,6 +40,19 @@ struct ef_file_write_s {
 	EF_FILE *					_file_ptr;
 };
 
+/* TBD: API of close has to be cleaned up. */
+struct ef_file_read_s {
+	EF_FILE *	_file_ptr;
+	long		_curr_page_no;
+	int			_which;
+};
+
+struct close_task_s {
+	EF_FILE *f_ptr;
+	int		f_index;
+	struct eio_file_cmd *_action;
+};
+
 static atomic_int sg_handle_to_file_action[EF_MAX_FILES] = { } ;
 static EF_FILE * sg_open_files[EF_MAX_FILES] = {};
 static ev_queue_type sg_fd_queue = NULL;;
@@ -69,53 +82,6 @@ static void setup_fd_slots()
 		enqueue(sg_fd_queue,(void*)(long)i);
 	}
 	return ;
-}
-
-/* To initialize the FILE IO module */
-/* It is assumed that this function will operate in a 
- * single threaded manner */
-void ef_init()
-{
-	errno = 0;
-	ev_init_globals();
-
-	sg_page_size = (size_t)get_sys_pagesize();
-	//sg_page_size = 16 * 256 * sg_page_size;
-	sg_page_size =  256 * sg_page_size;
-	//sg_page_size =  512 * sg_page_size;
-	//sg_page_size =  1024 * sg_page_size;
-
-	/* Start the thread pool needed to carryout the file operations
-	 * in an async manner.
-	 * One thread reserved for transfering data from memory to disk
-	 * 2 threads for carrying out asynchrnous, read, open and close
-	 * operations.
-	 */
-	sg_disk_io_thr_pool = create_thread_pool(2);
-	sg_file_writer_pool = create_thread_pool(1);
-	sg_slow_sync_pool = create_thread_pool(1);
-	enqueue_task(sg_file_writer_pool,file_writer,NULL);
-	enqueue_task(sg_slow_sync_pool,slow_sync,NULL);
-
-	/* Setup the table to hold the state data of files. */
-	for (int i = 0; i < EF_MAX_FILES; i++) {
-		sg_open_files[i] = NULL;
-		sg_handle_to_file_action[i] = 0;
-	}
-	sg_fd_queue = create_ev_queue();
-	sg_file_writer_queue = create_ev_queue();
-	sg_slow_sync_queue = create_ev_queue();
-	setup_fd_slots();
-
-	sg_ef_init_done = 1;
-
-	return;
-}
-
-void ef_set_cb_func(ef_notification_f_type cb_func, void * cb_data)
-{
-	sg_cb_func = cb_func;
-	sg_cb_data = cb_data;
 }
 
 static void ef_file_open(void * data)
@@ -166,199 +132,6 @@ static void ef_file_open(void * data)
 	file_ptr->_status = (file_ptr->_fd == -1)?FILE_NOT_OPEN:FILE_OPEN;
 	if (sg_cb_func) sg_cb_func(file_ptr->_ef_fd, oper_open, sg_cb_data);
 	return ;
-}
-
-/* Request to open the file */
-/* There is a global array of file handles and an index which indicates last used index
- * for opening. The logic in this function is to use a slot that is till now unused.
- * Start from the place of global index + 1 and search until an unused slot is found.
- * Search only EF_MAX_FILES number of times, if not successful within that many attemts return
- * with error. */
-int ef_open(const char * path, int oflag, ...)
-{
-	int fd = 0;
-	EF_FILE * file_ptr = NULL;
-	mode_t	mode =0;
-
-	errno = 0;
-	if (!sg_ef_init_done) {
-		errno = EBADF;
-		EV_ABORT("INIT NOT DONE");
-	}
-	if (path == NULL || *path == '\0') {
-		/* operation not supported, invalid input */
-		errno = EINVAL;
-		return -1;
-	}
-	if (O_APPEND == oflag) {
-		/* O_APPEND should be accompanied with either, O_RDONLY
-		 * OWRONLY or O_RDWR. */
-		errno = EINVAL;
-		return -1;
-	}
-
-	if ((O_RDONLY != oflag) && !((O_RDWR|O_APPEND|O_CREAT)&oflag)) {
-		/* operation not supported, invalid input */
-		errno = EINVAL;
-		return -1;
-	}
-
-	fd = (int)(long)dequeue(sg_fd_queue);
-	if (-1 == fd) {
-		/* Too many open files */
-		errno = EMFILE;
-		return -1;
-	}
-
-	{
-		int htfa = 0;
-		while (!atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,1)) htfa = 0;
-	}
-	/* Free for this malloc is in ef_close_status.
-	 * ef_close_status is called automatically in ef_close_immediate.
-	 * If async ef_close is called, the calling is not automatic. */
-	sg_open_files[fd] = malloc(sizeof(EF_FILE));
-	{
-		int htfa = 1;
-		atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,0);
-	}
-	file_ptr = (EF_FILE *)(sg_open_files[fd]);
-	EF_FILE_INIT(file_ptr);
-
-	/* Submit Request to open the file */
-	file_ptr->_ef_fd = fd;
-	alloc_file_action(file_ptr,oper_open);
-	file_ptr->_action->_inp._open_inp._path = strdup(path);
-	file_ptr->_action->_inp._open_inp._oflag = oflag;
-	file_ptr->_status = FILE_OPEN_ATTEMPTED;
-	if (O_CREAT&oflag) {
-		va_list ap;
-		va_start(ap,oflag);
-		mode= (mode_t)va_arg(ap,int);
-		file_ptr->_action->_inp._open_inp._mode = mode;
-		va_end(ap);
-	}
-
-	enqueue_task(sg_disk_io_thr_pool,ef_file_open,file_ptr);
-
-	/* Return the handle to file. */
-	return fd;
-}
-
-int ef_file_state(int fd)
-{
-	return ((sg_open_files[fd])?sg_open_files[fd]->_status:FILE_NOT_OPEN);
-}
-
-int ef_open_status(int fd)
-{
-	int status = 0;
-	errno = 0;
-	if (!sg_open_files[fd]) {
-		errno = EINVAL;
-		return -1;
-	}
-	if (sg_open_files[fd]->_status == FILE_OPEN_ATTEMPTED) {
-		errno = EAGAIN;
-		return -1;
-	}
-	if (sg_open_files[fd]->_action && sg_open_files[fd]->_action->_cmd == oper_open) {
-		if (sg_open_files[fd]->_action->_action_status == ACTION_COMPLETE) {
-			if (sg_open_files[fd]->_action->_return_value == -1) {
-				errno = sg_open_files[fd]->_action->_err;
-
-				{
-					int htfa = 0;
-					while (!atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,1)) htfa = 0;
-				}
-				EF_FILE_CLEANUP(sg_open_files[fd]);
-				{
-					int htfa = 1;
-					atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,0);
-				}
-				enqueue(sg_fd_queue,(void*)(long)fd);
-
-				return -1;
-			}
-			else if (sg_open_files[fd]->_action->_return_value == -100) {
-				errno = EAGAIN;
-				return -1;
-			}
-			else {
-				free_file_action(sg_open_files[fd]);
-				atomic_thread_fence(memory_order_release);
-				return sg_open_files[fd]->_fd;
-			}
-		}
-		else {
-			errno = EAGAIN;
-			return -1;
-		}
-	}
-	else {
-		if (sg_open_files[fd]->_status == FILE_OPEN) {
-			return sg_open_files[fd]->_fd;
-		}
-		else {
-			errno = EBADF;
-			return -1;
-		}
-	}
-
-	return status;
-}
-
-struct close_task_s {
-	EF_FILE *f_ptr;
-	int		f_index;
-	struct eio_file_cmd *_action;
-};
-
-int ef_close_status(int fd)
-{
-	errno = 0;
-	if (!sg_open_files[fd]) {
-		return FILE_NOT_OPEN;
-	}
-	if (sg_open_files[fd]->_action && sg_open_files[fd]->_action->_cmd == oper_close) {
-		if (sg_open_files[fd]->_action->_action_status == ACTION_COMPLETE) {
-			if (sg_open_files[fd]->_action->_return_value == -1) {
-				
-				errno = sg_open_files[fd]->_action->_err;
-				free_file_action(sg_open_files[fd]);
-				atomic_thread_fence(memory_order_release);
-
-				return -1;
-			}
-			else if (sg_open_files[fd]->_action->_return_value == -100) {
-				errno = EAGAIN;
-				return -1;
-			}
-			else {
-				{
-					int htfa = 0;
-					while (!atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,1)) htfa = 0;
-				}
-				EF_FILE_CLEANUP(sg_open_files[fd]);
-				{
-					int htfa = 1;
-					atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,0);
-				}
-				enqueue(sg_fd_queue,(void*)(long)fd);
-				return 0;
-			}
-		}
-		else {
-			errno = EAGAIN;
-			return -1;
-		}
-	}
-	else {
-		errno = EINVAL;
-		return -1;
-	}
-
-	return FILE_NOT_OPEN;
 }
 
 /*
@@ -471,26 +244,6 @@ static int ef_close_api(int fd , bool immediate)
 	}
 	return ret;
 }
-
-/* API of close has to be cleaned up. */
-int ef_close(int fd)
-{
-	errno = 0;
-	return ef_close_api(fd,false);;
-}
-
-/* API of close has to be cleaned up. */
-int ef_close_immediate(int fd)
-{
-	errno = 0;
-	return ef_close_api(fd,true);
-}
-
-struct ef_file_read_s {
-	EF_FILE *	_file_ptr;
-	long		_curr_page_no;
-	int			_which;
-};
 
 static void ef_file_read_ahead(void *data)
 {
@@ -616,34 +369,6 @@ static struct data_buf_s * get_read_ahead_buf(EF_FILE * file_ptr,long page_no)
 	}
 
 	return buf_list_ptr;
-}
-
-
-int ef_poll(int fd)
-{
-	int ret = 0;
-	EF_FILE * file_ptr = NULL;
-	if (!sg_ef_init_done) {
-		errno = EBADF;
-		EV_ABORT("INIT NOT DONE");
-	}
-	if (!sg_open_files[fd]) {
-		errno = EBADF;
-		return -1;
-	}
-	if (sg_open_files[fd]->_status != FILE_OPEN) {
-		errno = EBADF;
-		return -1;
-	}
-
-	file_ptr = sg_open_files[fd];
-	if ((O_WRONLY|O_RDWR)&file_ptr->_oflag)
-		ret = ret|1;
-
-	if (((file_ptr->_oflag == O_RDONLY) || (O_RDWR&file_ptr->_oflag)) && (file_ptr->_buf._buffer))
-		ret = ret|2;
-
-	return ret;
 }
 
 static int ef_process_readahead_action_status(EF_FILE *file_ptr)
@@ -895,17 +620,6 @@ static ssize_t low_ef_read(int fd, void * buf, size_t nbyte)
 		}
 	}
 
-	return ret;
-}
-
-ssize_t ef_read(int fd, void * buf, size_t nbyte)
-{
-	ssize_t ret = 0;
-	uint64_t	t1 = 0, t2 = 0;
-	//t1 = clock_gettime_nsec_np(CLOCK_REALTIME);
-	ret = low_ef_read(fd,buf,nbyte);
-	//t2 = clock_gettime_nsec_np(CLOCK_REALTIME);
-	//T+= (t2-t1);
 	return ret;
 }
 
@@ -1445,6 +1159,299 @@ LOW_EF_WRITE_FINALLY:
 
 }
 
+static void low_ef_sync(EF_FILE * file_ptr)
+{
+	if (file_ptr->_action && file_ptr->_action->_cmd == oper_write && file_ptr->_action->_inp._write_inp._w_accum._bytes) {
+		write_buffer_sync(file_ptr);
+	}
+	return;
+}
+
+int ef_poll(int fd)
+{
+	int ret = 0;
+	EF_FILE * file_ptr = NULL;
+	if (!sg_ef_init_done) {
+		errno = EBADF;
+		EV_ABORT("INIT NOT DONE");
+	}
+	if (!sg_open_files[fd]) {
+		errno = EBADF;
+		return -1;
+	}
+	if (sg_open_files[fd]->_status != FILE_OPEN) {
+		errno = EBADF;
+		return -1;
+	}
+
+	file_ptr = sg_open_files[fd];
+	if ((O_WRONLY|O_RDWR)&file_ptr->_oflag)
+		ret = ret|1;
+
+	if (((file_ptr->_oflag == O_RDONLY) || (O_RDWR&file_ptr->_oflag)) && (file_ptr->_buf._buffer))
+		ret = ret|2;
+
+	return ret;
+}
+
+int ef_close(int fd)
+{
+	errno = 0;
+	return ef_close_api(fd,false);;
+}
+
+/* API of close has to be cleaned up. */
+int ef_close_immediate(int fd)
+{
+	errno = 0;
+	return ef_close_api(fd,true);
+}
+
+/* Request to open the file */
+/* There is a global array of file handles and an index which indicates last used index
+ * for opening. The logic in this function is to use a slot that is till now unused.
+ * Start from the place of global index + 1 and search until an unused slot is found.
+ * Search only EF_MAX_FILES number of times, if not successful within that many attemts return
+ * with error. */
+int ef_open(const char * path, int oflag, ...)
+{
+	int fd = 0;
+	EF_FILE * file_ptr = NULL;
+	mode_t	mode =0;
+
+	errno = 0;
+	if (!sg_ef_init_done) {
+		errno = EBADF;
+		EV_ABORT("INIT NOT DONE");
+	}
+	if (path == NULL || *path == '\0') {
+		/* operation not supported, invalid input */
+		errno = EINVAL;
+		return -1;
+	}
+	if (O_APPEND == oflag) {
+		/* O_APPEND should be accompanied with either, O_RDONLY
+		 * OWRONLY or O_RDWR. */
+		errno = EINVAL;
+		return -1;
+	}
+
+	if ((O_RDONLY != oflag) && !((O_RDWR|O_APPEND|O_CREAT)&oflag)) {
+		/* operation not supported, invalid input */
+		errno = EINVAL;
+		return -1;
+	}
+
+	fd = (int)(long)dequeue(sg_fd_queue);
+	if (-1 == fd) {
+		/* Too many open files */
+		errno = EMFILE;
+		return -1;
+	}
+
+	{
+		int htfa = 0;
+		while (!atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,1)) htfa = 0;
+	}
+	/* Free for this malloc is in ef_close_status.
+	 * ef_close_status is called automatically in ef_close_immediate.
+	 * If async ef_close is called, the calling is not automatic. */
+	sg_open_files[fd] = malloc(sizeof(EF_FILE));
+	{
+		int htfa = 1;
+		atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,0);
+	}
+	file_ptr = (EF_FILE *)(sg_open_files[fd]);
+	EF_FILE_INIT(file_ptr);
+
+	/* Submit Request to open the file */
+	file_ptr->_ef_fd = fd;
+	alloc_file_action(file_ptr,oper_open);
+	file_ptr->_action->_inp._open_inp._path = strdup(path);
+	file_ptr->_action->_inp._open_inp._oflag = oflag;
+	file_ptr->_status = FILE_OPEN_ATTEMPTED;
+	if (O_CREAT&oflag) {
+		va_list ap;
+		va_start(ap,oflag);
+		mode= (mode_t)va_arg(ap,int);
+		file_ptr->_action->_inp._open_inp._mode = mode;
+		va_end(ap);
+	}
+
+	enqueue_task(sg_disk_io_thr_pool,ef_file_open,file_ptr);
+
+	/* Return the handle to file. */
+	return fd;
+}
+
+int ef_file_state(int fd)
+{
+	return ((sg_open_files[fd])?sg_open_files[fd]->_status:FILE_NOT_OPEN);
+}
+
+int ef_open_status(int fd)
+{
+	int status = 0;
+	errno = 0;
+	if (!sg_open_files[fd]) {
+		errno = EINVAL;
+		return -1;
+	}
+	if (sg_open_files[fd]->_status == FILE_OPEN_ATTEMPTED) {
+		errno = EAGAIN;
+		return -1;
+	}
+	if (sg_open_files[fd]->_action && sg_open_files[fd]->_action->_cmd == oper_open) {
+		if (sg_open_files[fd]->_action->_action_status == ACTION_COMPLETE) {
+			if (sg_open_files[fd]->_action->_return_value == -1) {
+				errno = sg_open_files[fd]->_action->_err;
+
+				{
+					int htfa = 0;
+					while (!atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,1)) htfa = 0;
+				}
+				EF_FILE_CLEANUP(sg_open_files[fd]);
+				{
+					int htfa = 1;
+					atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,0);
+				}
+				enqueue(sg_fd_queue,(void*)(long)fd);
+
+				return -1;
+			}
+			else if (sg_open_files[fd]->_action->_return_value == -100) {
+				errno = EAGAIN;
+				return -1;
+			}
+			else {
+				free_file_action(sg_open_files[fd]);
+				atomic_thread_fence(memory_order_release);
+				return sg_open_files[fd]->_fd;
+			}
+		}
+		else {
+			errno = EAGAIN;
+			return -1;
+		}
+	}
+	else {
+		if (sg_open_files[fd]->_status == FILE_OPEN) {
+			return sg_open_files[fd]->_fd;
+		}
+		else {
+			errno = EBADF;
+			return -1;
+		}
+	}
+
+	return status;
+}
+
+int ef_close_status(int fd)
+{
+	errno = 0;
+	if (!sg_open_files[fd]) {
+		return FILE_NOT_OPEN;
+	}
+	if (sg_open_files[fd]->_action && sg_open_files[fd]->_action->_cmd == oper_close) {
+		if (sg_open_files[fd]->_action->_action_status == ACTION_COMPLETE) {
+			if (sg_open_files[fd]->_action->_return_value == -1) {
+				
+				errno = sg_open_files[fd]->_action->_err;
+				free_file_action(sg_open_files[fd]);
+				atomic_thread_fence(memory_order_release);
+
+				return -1;
+			}
+			else if (sg_open_files[fd]->_action->_return_value == -100) {
+				errno = EAGAIN;
+				return -1;
+			}
+			else {
+				{
+					int htfa = 0;
+					while (!atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,1)) htfa = 0;
+				}
+				EF_FILE_CLEANUP(sg_open_files[fd]);
+				{
+					int htfa = 1;
+					atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,0);
+				}
+				enqueue(sg_fd_queue,(void*)(long)fd);
+				return 0;
+			}
+		}
+		else {
+			errno = EAGAIN;
+			return -1;
+		}
+	}
+	else {
+		errno = EINVAL;
+		return -1;
+	}
+
+	return FILE_NOT_OPEN;
+}
+
+ssize_t ef_read(int fd, void * buf, size_t nbyte)
+{
+	ssize_t ret = 0;
+	uint64_t	t1 = 0, t2 = 0;
+	//t1 = clock_gettime_nsec_np(CLOCK_REALTIME);
+	ret = low_ef_read(fd,buf,nbyte);
+	//t2 = clock_gettime_nsec_np(CLOCK_REALTIME);
+	//T+= (t2-t1);
+	return ret;
+}
+
+/* To initialize the FILE IO module */
+/* It is assumed that this function will operate in a 
+ * single threaded manner */
+void ef_init()
+{
+	errno = 0;
+	ev_init_globals();
+
+	sg_page_size = (size_t)get_sys_pagesize();
+	//sg_page_size = 16 * 256 * sg_page_size;
+	sg_page_size =  256 * sg_page_size;
+	//sg_page_size =  512 * sg_page_size;
+	//sg_page_size =  1024 * sg_page_size;
+
+	/* Start the thread pool needed to carryout the file operations
+	 * in an async manner.
+	 * One thread reserved for transfering data from memory to disk
+	 * 2 threads for carrying out asynchrnous, read, open and close
+	 * operations.
+	 */
+	sg_disk_io_thr_pool = create_thread_pool(2);
+	sg_file_writer_pool = create_thread_pool(1);
+	sg_slow_sync_pool = create_thread_pool(1);
+	enqueue_task(sg_file_writer_pool,file_writer,NULL);
+	enqueue_task(sg_slow_sync_pool,slow_sync,NULL);
+
+	/* Setup the table to hold the state data of files. */
+	for (int i = 0; i < EF_MAX_FILES; i++) {
+		sg_open_files[i] = NULL;
+		sg_handle_to_file_action[i] = 0;
+	}
+	sg_fd_queue = create_ev_queue();
+	sg_file_writer_queue = create_ev_queue();
+	sg_slow_sync_queue = create_ev_queue();
+	setup_fd_slots();
+
+	sg_ef_init_done = 1;
+
+	return;
+}
+
+void ef_set_cb_func(ef_notification_f_type cb_func, void * cb_data)
+{
+	sg_cb_func = cb_func;
+	sg_cb_data = cb_data;
+}
+
 ssize_t ef_write(int fd, void * buf, size_t nbyte)
 {
 	errno = 0;
@@ -1468,14 +1475,6 @@ ssize_t ef_write(int fd, void * buf, size_t nbyte)
 	}
 	
 	return low_ef_write(sg_open_files[fd],buf, nbyte);
-}
-
-static void low_ef_sync(EF_FILE * file_ptr)
-{
-	if (file_ptr->_action && file_ptr->_action->_cmd == oper_write && file_ptr->_action->_inp._write_inp._w_accum._bytes) {
-		write_buffer_sync(file_ptr);
-	}
-	return;
 }
 
 /* ef_sync is an extension to ef_write.

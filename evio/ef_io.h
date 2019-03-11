@@ -230,5 +230,17 @@ int ef_sync(int fd);
  * The completed activity can be detected using ef_poll.
  */
 
+int ef_close_status(int fd);
+/* Poll and find out if the close operation initiated for the input fd is complete.
+ *
+ * Return values:
+ *
+ * = 0, If the file is in closed status
+ * < 0, In case of any error, the value of errno is set.
+ *
+ * errno = EAGAIN : The operation is still in progress.
+ * errno = EINVAL : Close opertaion is not initiated.
+ *
+ */
 __END_DECLS
 #endif
