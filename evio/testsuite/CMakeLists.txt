@@ -52,3 +52,16 @@ else()
 	add_test(NAME ${TESTUNIT4} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} COMMAND ${TESTUNIT4} -all)
 endif()
 
+# Sources
+set(TESTUNIT5 "${LIBNAME}-file-testrunner5")
+POCO_SOURCES_AUTO( TEST_SRCS_5 file_test_case_5.c)
+
+add_executable( ${TESTUNIT5} ${TEST_SRCS_5} )
+target_link_libraries( "${TESTUNIT5}" evglobals evsync evds evthrpool evio cutest "${SYSLIBS}")
+if(ANDROID)
+	add_test(NAME ${TESTUNIT5} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} 
+		COMMAND ${CMAKE_COMMAND} -DANDROID_NDK=${ANDROID_NDK} -DLIBRARY_DIR=${CMAKE_BINARY_DIR}/lib -DUNITTEST=${CMAKE_BINARY_DIR}/bin/${TESTUNIT5} -DTEST_PARAMETER=-all -P ${CMAKE_SOURCE_DIR}/cmake/ExecuteOnAndroid.cmake)
+else()
+	add_test(NAME ${TESTUNIT5} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} COMMAND ${TESTUNIT5} -all)
+endif()
+

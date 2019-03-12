@@ -188,6 +188,10 @@ typedef struct _s {
 	struct buf_s			_buf;
 	struct eio_file_cmd		*_action;
 	atomic_int				_prevent_action_mutation;
+	/*
+	int						in_sync;
+	int						in_write;
+	*/
 } EF_FILE;
 
 /* printf("[%s:%d] Reached [%d] \n",s,l,(a)->_cmd);fflush(stdout); \*/
@@ -261,6 +265,10 @@ typedef struct _s {
 	f->_action = NULL; \
 	f->_prevent_action_mutation = 0; \
 }
+/*
+f->in_sync = 0; \
+f->in_write = 0; \
+*/
 
 #define EF_FILE_SIZE sizeof(EF_FILE)
 

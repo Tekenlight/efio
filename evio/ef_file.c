@@ -66,9 +66,7 @@ static size_t sg_page_size = 0;
 static pthread_t sg_file_writer_tid;
 static ef_notification_f_type sg_cb_func = NULL;
 static void * sg_cb_data = NULL;
-
 static int sg_ef_init_done = 0;
-
 static void file_writer(void * data);
 static void slow_sync(void * data);
 static void alloc_file_action(EF_FILE * file_ptr, file_oper_type oper);
@@ -100,11 +98,7 @@ static void ef_file_open(void * data)
 
 	if (O_CREAT&(file_ptr->_action->_inp._open_inp._oflag)) {
 #ifdef __linux__
-		//EV_DBGP("Here\n");
-		//EV_DBGP("file_ptr->_action->_inp._open_inp._oflag = %0#X\n",file_ptr->_action->_inp._open_inp._oflag);
-		//EV_DBGP("O_APPEND|O_WRONLY = %0#X\n",O_APPEND|O_WRONLY);
-		//EV_DBGP("BITWISE ANDED = %0#X\n",(O_APPEND|O_WRONLY)&(file_ptr->_action->_inp._open_inp._oflag));
-		if (!((O_APPEND|O_WRONLY)&(file_ptr->_action->_inp._open_inp._oflag))) {
+		if (!((O_APPEND|O_WRONLY|O_RDWR)&(file_ptr->_action->_inp._open_inp._oflag))) {
 			file_ptr->_action->_inp._open_inp._oflag |= O_DIRECT;
 		}
 #endif
@@ -114,7 +108,7 @@ static void ef_file_open(void * data)
 	}
 	else {
 #ifdef __linux__
-		if (!((O_APPEND|O_WRONLY)&file_ptr->_action->_inp._open_inp._oflag)) {
+		if (!((O_APPEND|O_WRONLY|O_RDWR)&file_ptr->_action->_inp._open_inp._oflag)) {
 			file_ptr->_action->_inp._open_inp._oflag |= O_DIRECT;
 		}
 #endif
@@ -134,18 +128,32 @@ static void ef_file_open(void * data)
 		file_ptr->_file_offset = 0;
 		file_ptr->_block_write_unaligned = 0;
 		file_ptr->_oflag = file_ptr->_action->_inp._open_inp._oflag;
-		if ((O_WRONLY&file_ptr->_oflag) && (O_APPEND&file_ptr->_oflag)) {
-			file_ptr->_file_offset = lseek(file_ptr->_fd,0,SEEK_END);
-			if (file_ptr->_file_offset % sg_page_size) {
-				file_ptr->_block_write_unaligned = 1;
-			}
+		if (O_APPEND&file_ptr->_oflag) {
+			if (O_WRONLY&file_ptr->_oflag) {
+				file_ptr->_file_offset = lseek(file_ptr->_fd,0,SEEK_END);
+				if (file_ptr->_file_offset % sg_page_size) {
+					file_ptr->_block_write_unaligned = 1;
+				}
 #ifdef __linux__
-			else {
-				int flg = fcntl(file_ptr->_fd,F_GETFL);
-				flg |= O_DIRECT;
-				fcntl(file_ptr->_fd,F_SETFL,flg);
-			}
+				else {
+					int flg = fcntl(file_ptr->_fd,F_GETFL);
+					flg |= O_DIRECT;
+					fcntl(file_ptr->_fd,F_SETFL,flg);
+				}
 #endif
+			}
+			else if (O_RDWR&file_ptr->_oflag) {
+				if (file_ptr->_running_file_size % sg_page_size) {
+					file_ptr->_block_write_unaligned = 1;
+				}
+#ifdef __linux__
+				else {
+					int flg = fcntl(file_ptr->_fd,F_GETFL);
+					flg |= O_DIRECT;
+					fcntl(file_ptr->_fd,F_SETFL,flg);
+				}
+#endif
+			}
 		}
 		file_ptr->_buf._buffer_index = (file_ptr->_file_offset / sg_page_size);
 	}
@@ -663,7 +671,25 @@ static ssize_t low_ef_read(int fd, void * buf, size_t nbyte)
 
 static void ef_file_fsync(EF_FILE * file_ptr)
 {
+	off_t		page_offset = 0;
+	//file_ptr->in_sync = 1;
 	sync_buf_to_file(file_ptr);
+	file_ptr->_curr_file_size_on_disk = file_ptr->_fd,file_ptr->_running_file_size;
+	page_offset = file_ptr->_file_offset - (file_ptr->_buf._buffer_index * sg_page_size);
+	if (page_offset == sg_page_size) {
+		if (file_ptr->_buf._buffer) free(file_ptr->_buf._buffer);
+		file_ptr->_buf._buffer = NULL;
+		file_ptr->_buf._buffer_index++;
+	}
+#ifdef __linux__
+	else if (O_APPEND&(file_ptr->_oflag)) {
+		int flg = fcntl(file_ptr->_fd,F_GETFL);
+		file_ptr->_block_write_unaligned = 1;
+		if (O_DIRECT&flg) flg ^= O_DIRECT;
+		fcntl(file_ptr->_fd,F_SETFL,flg);
+	}
+#endif
+	//file_ptr->in_sync = 0;
 	return ;
 }
 
@@ -955,16 +981,20 @@ static void sync_buf_from_file(EF_FILE *file_ptr)
 			buf_list_ptr->_buf = NULL;
 			free(buf_list_ptr);
 			buf_list_ptr = NULL;
-			file_ptr->_block_write_unaligned = 0;
+			//file_ptr->_block_write_unaligned = 0;
 		}
 		else if  ((O_RDONLY == file_ptr->_oflag) || (O_RDWR&file_ptr->_oflag)) {
 			errno = 0;
+			//EV_DBGP("fd = [%d]\n",file_ptr->_fd);
+			//EV_DBGP("Buf ptr = [%p]\n",file_ptr->_buf._buffer);
+			//EV_DBGP("Page size = [%zu]\n",sg_page_size);
+			//EV_DBGP("Offset = [%zu]\n",(file_ptr->_buf._buffer_index * sg_page_size));
 			if (-1 == pread(file_ptr->_fd,file_ptr->_buf._buffer,sg_page_size,
 									(file_ptr->_buf._buffer_index * sg_page_size))) {
 				EV_ABORT("Cannot handle this error\n");
 
 			}
-			file_ptr->_block_write_unaligned = 0;
+			//file_ptr->_block_write_unaligned = 0;
 		}
 	}
 }
@@ -979,8 +1009,15 @@ static void sync_buf_to_file(EF_FILE *file_ptr)
 		errno = 0;
 		if (-1 == pwrite(file_ptr->_fd,file_ptr->_buf._buffer,
 					sg_page_size,(file_ptr->_buf._buffer_index * sg_page_size))) {
-			EV_ABORT("Cannot handle this error\n");fflush(stdout);
+			//EV_DBGP("is=%d,iw=%d,fd = %d, index = %d, Buf ptr = [%ld]\n",file_ptr->in_sync,file_ptr->in_write,file_ptr->_fd,file_ptr->_buf._buffer_index,(long)(file_ptr->_buf._buffer));
+			//EV_DBGP("fd = [%d]\n",file_ptr->_fd);
+			//EV_DBGP("fd = [%d]\n",file_ptr->_fd);
+			//EV_DBGP("Buf ptr = [%ld]\n",(long)(file_ptr->_buf._buffer));
+			//EV_DBGP("Page size = [%zu]\n",sg_page_size);
+			//EV_DBGP("Offset = [%zu]\n",(file_ptr->_buf._buffer_index * sg_page_size));
+			//EV_ABORT("Cannot handle this error\n");fflush(stdout);
 		}
+		//EV_DBGP("is=%d,iw=%d,fd = %d, index = %d, Buf ptr = [%ld]\n",file_ptr->in_sync,file_ptr->in_write,file_ptr->_fd,file_ptr->_buf._buffer_index,(long)(file_ptr->_buf._buffer));
 		//fcntl(file_ptr->_fd,F_FULLFSYNC);
 		if (ftruncate(file_ptr->_fd,file_ptr->_running_file_size)) EV_ABORT("ftruncate call failed");
 		file_ptr->_buf._is_dirty = 0;
@@ -1079,7 +1116,9 @@ static int ef_one_single_write(EF_FILE *file_ptr, struct write_task_s * w_t)
 			file_ptr->_file_offset += transfer_size;
 			if (page_offset == sg_page_size) {
 				/* Transfer content to disk . */
+				//file_ptr->in_write = 1;
 				sync_buf_to_file(file_ptr);
+				//file_ptr->in_write = 0;
 				file_ptr->_buf._buffer_index++;
 				if ((file_ptr->_buf._buffer_index * sg_page_size) > file_ptr->_curr_file_size_on_disk) {
 					file_ptr->_curr_file_size_on_disk = (file_ptr->_buf._buffer_index * sg_page_size);
