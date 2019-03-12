@@ -674,7 +674,7 @@ static void ef_file_fsync(EF_FILE * file_ptr)
 	off_t		page_offset = 0;
 	//file_ptr->in_sync = 1;
 	sync_buf_to_file(file_ptr);
-	file_ptr->_curr_file_size_on_disk = file_ptr->_fd,file_ptr->_running_file_size;
+	file_ptr->_curr_file_size_on_disk = file_ptr->_running_file_size;
 	page_offset = file_ptr->_file_offset - (file_ptr->_buf._buffer_index * sg_page_size);
 	if (page_offset == sg_page_size) {
 		if (file_ptr->_buf._buffer) free(file_ptr->_buf._buffer);
