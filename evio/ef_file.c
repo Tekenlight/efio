@@ -142,18 +142,18 @@ static void ef_file_open(void * data)
 				}
 #endif
 			}
+#ifdef __linux__
 			else if (O_RDWR&file_ptr->_oflag) {
 				if (file_ptr->_running_file_size % sg_page_size) {
 					file_ptr->_block_write_unaligned = 1;
 				}
-#ifdef __linux__
 				else {
 					int flg = fcntl(file_ptr->_fd,F_GETFL);
 					flg |= O_DIRECT;
 					fcntl(file_ptr->_fd,F_SETFL,flg);
 				}
-#endif
 			}
+#endif
 		}
 		file_ptr->_buf._buffer_index = (file_ptr->_file_offset / sg_page_size);
 	}
@@ -684,9 +684,9 @@ static void ef_file_fsync(EF_FILE * file_ptr)
 #ifdef __linux__
 	else if (O_APPEND&(file_ptr->_oflag)) {
 		int flg = fcntl(file_ptr->_fd,F_GETFL);
-		file_ptr->_block_write_unaligned = 1;
 		if (O_DIRECT&flg) flg ^= O_DIRECT;
 		fcntl(file_ptr->_fd,F_SETFL,flg);
+		file_ptr->_block_write_unaligned = 1;
 	}
 #endif
 	//file_ptr->in_sync = 0;
