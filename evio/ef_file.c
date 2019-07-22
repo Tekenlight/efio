@@ -1170,6 +1170,7 @@ static void write_buffer_sync(EF_FILE * file_ptr)
 	fwt->_cmd = fw_write_req_evt;
 	fwt->_file_ptr = file_ptr;
 	enqueue(sg_file_writer_queue,fwt);
+	/* Wake up file writer thread, which is running file_writer. */
 	pthread_kill(sg_file_writer_tid,SIGINT);
 	return;
 }
