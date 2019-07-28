@@ -133,7 +133,7 @@ memory_buffer_list::node * memory_buffer_list::pop_head()
 			 * we set tail to 0 above in the compare exchange operation.
 			 * The add_node method thought that the queue is empty and
 			 * set a new value of _head.
-			 * However if it happens to have not changed fro what was found
+			 * However if it happens to have not changed from what was found
 			 * initially here, we should change it to the next pointer in
 			 * the chain.
 			 * */
