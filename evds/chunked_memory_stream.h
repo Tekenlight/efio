@@ -40,6 +40,26 @@ public:
 	// Returns the number of bytes copied, or 0 if no data is available
 	// or -1 if there is any error.
 
+	size_t read(void *buffer, size_t bytes);
+	// Copies 'bytes' number of bytes from the chunked_memory_stream,
+	// from the start position 0.
+	// If there is less data, as many bytes as there are are copied
+	// to the location pointed by buffer.
+	// The caller is expected to allocate memory to the buffer.
+	//
+	// Unlike the other version of read, this copies the data to the buffer
+	// and erases from the source.
+	//
+	// The index start_pos is C style, i.e. first character is at 0th
+	// position.
+	//
+	// Differences between this and pull_out are,
+	// . This method only copies the data and leaves the source unaltered
+	// . This method has the ability to copy from any offset location.
+	//
+	// Returns the number of bytes copied, or 0 if no data is available
+	// or -1 if there is any error.
+
 	size_t erase(size_t bytes);
 	// Moves the head of the data stream to the offset 0 + bytes
 	// Memory holding the data is freed.

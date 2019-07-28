@@ -92,6 +92,64 @@ size_t chunked_memory_stream::read(size_t start_pos, void *buffer, size_t bytes)
 	return copied;
 }
 
+// Copies 'bytes' number of bytes from the chunked_memory_stream,
+// from the start position 0.
+// If there is less data, as many bytes as there are are copied
+// to the location pointed by buffer.
+// The caller is expected to allocate memory to the buffer.
+//
+// Unlike the other version of read, this copies the data to the buffer
+// and erases from the source.
+//
+// The index start_pos is C style, i.e. first character is at 0th
+// position.
+//
+// Differences between this and pull_out are,
+// . This method only copies the data and leaves the source unaltered
+// . This method has the ability to copy from any offset location.
+//
+// Returns the number of bytes copied, or 0 if no data is available
+// or -1 if there is any error.
+size_t chunked_memory_stream::read(void *buffer, size_t bytes)
+{
+	memory_buffer_list::node * node_ptr = 0;
+	void * node_buffer = 0;
+	size_t to_be_copied = 0;
+	size_t copied = 0;
+	size_t traversed = 0; // Traversed indicates count and not index.
+
+	node_ptr = _buffer_list.get_head();
+	if (!node_ptr) return 0;
+
+	// copy as much data required.
+	while (node_ptr && copied < bytes) {
+		to_be_copied = 0; // To be copied from the current node.
+
+		// => start_pos is within this buffer.
+		if ((bytes - copied) >= node_ptr->get_buffer_len()) {
+			// remaining to be copied exceeds the buffer len.
+			// Copy what can be taken from the buffer.
+			to_be_copied = node_ptr->get_buffer_len();
+		}
+		else {
+			// remaining to be copied is not exceeding the buffer len.
+			to_be_copied = bytes - copied;
+		}
+		node_buffer = node_ptr->get_buffer();
+		memcpy(((char*)buffer + copied), (char*)node_buffer  , to_be_copied);
+
+		if (to_be_copied == node_ptr->get_buffer_len())
+			_buffer_list.pop_head();
+		else {
+			node_ptr->shift_buffer_position(to_be_copied);
+		}
+		copied += to_be_copied;
+		node_ptr = _buffer_list.get_head();
+	}
+
+	return copied;
+}
+
 // Moves the head of the data stream to the offset 0 + bytes
 // Memory holding the data is freed.
 // Returns the number of bytes erased.

@@ -49,12 +49,14 @@ public:
 			size_t get_buffer_len();
 			void * get_buffer();
 			node * get_next();
+			void shift_buffer_position(size_t bytes);
 
 			~node();
 		private:
 			atomic_uintptr_t _next;
 			void * _buffer;
 			size_t _size;
+			void * _buffer_position_ptr;
 	};
 	memory_buffer_list();
 

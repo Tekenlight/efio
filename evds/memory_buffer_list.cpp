@@ -2,7 +2,7 @@
 #include <memory_buffer_list.h>
 
 
-memory_buffer_list::node::node(): _next(0),_buffer(0),_size(0)
+memory_buffer_list::node::node(): _next(0),_buffer(0),_size(0),_buffer_position_ptr(0)
 {
 }
 
@@ -17,6 +17,7 @@ void memory_buffer_list::node::set_buffer(void * buffer, size_t size)
 {
 	_buffer = buffer;
 	_size = size;
+	_buffer_position_ptr = _buffer;
 }
 
 void memory_buffer_list::node::set_next(node * np)
@@ -31,7 +32,19 @@ size_t memory_buffer_list::node::get_buffer_len()
 
 void * memory_buffer_list::node::get_buffer()
 {
-	return _buffer;
+	return _buffer_position_ptr;
+}
+
+void memory_buffer_list::node::shift_buffer_position(size_t bytes)
+{
+	if (((char*)_buffer_position_ptr + bytes) < ((char*)_buffer + _size)) {
+		_buffer_position_ptr = (void*)((char*)_buffer_position_ptr + bytes);
+		_size -= bytes;
+	}
+	else if (((char*)_buffer_position_ptr + bytes) == ((char*)_buffer + _size)) {
+		_buffer_position_ptr = NULL;
+		_size = 0;
+	}
 }
 
 
@@ -42,6 +55,7 @@ memory_buffer_list::node::~node()
 	_buffer = 0;
 	_size = 0;
 	_next = 0;
+	_buffer_position_ptr = NULL;
 }
 
 memory_buffer_list::memory_buffer_list():_head(0),_tail(0)

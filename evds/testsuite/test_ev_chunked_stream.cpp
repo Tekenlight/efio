@@ -1,26 +1,48 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <ev_include.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdatomic.h>
+#include <CuTest.h>
 #include <chunked_memory_stream.h>
 #include <string.h>
 
 
-static void reader(char * string, chunked_memory_stream & cms, size_t offset, size_t length)
+static int reader(char * string, chunked_memory_stream & cms, size_t length)
+{
+	int n = 0;
+	memset(string,'\0',10);
+	n = cms.read(string, length);
+	printf("Read %d bytes from offset [%d] and string is [%s]\n", n, 0, string);
+
+	return n;
+}
+
+static int reader(char * string, chunked_memory_stream & cms, size_t offset, size_t length)
 {
 	int n = 0;
 	memset(string,'\0',10);
 	n = cms.read(offset, string, length);
 	//printf("Read %d bytes from offset [%lu] and string is [%s]\n", n, offset, string);
 
-	return ;
+	return n;
 }
 
 static void test_main(CuTest *tc)
 {
 	int ret = 0;
 	char string[10];
-	char * a = (char*)calloc(1, 2);
-	char * b = (char*)calloc(1, 2);
-	char * c = (char*)calloc(1, 2);
-	char * d = (char*)calloc(1, 2);
 	chunked_memory_stream cms;
+	char * a = NULL;
+	char * b = NULL;
+	char * c = NULL;
+	char * d = NULL;
+
+	a = (char*)calloc(1, 2);
+	b = (char*)calloc(1, 2);
+	c = (char*)calloc(1, 2);
+	d = (char*)calloc(1, 2);
 
 	memcpy(a, "01", 2);
 	cms.push(a, 2);
@@ -52,6 +74,36 @@ static void test_main(CuTest *tc)
 	cms.erase(5);
 	reader(string, cms, 0, 8);
 	CuAssertTrue(tc, !strcmp("567",string));
+	cms.erase(3);
+
+	a = (char*)calloc(1, 2);
+	b = (char*)calloc(1, 2);
+	c = (char*)calloc(1, 2);
+	d = (char*)calloc(1, 2);
+
+	memcpy(a, "01", 2);
+	cms.push(a, 2);
+
+	memcpy(b, "23", 2);
+	cms.push(b, 2);
+
+	memcpy(c, "45", 2);
+	cms.push(c, 2);
+
+	memcpy(d, "67", 2);
+	cms.push(d, 2);
+
+	reader(string, cms, 3);
+	CuAssertTrue(tc, !strcmp("012",string));
+
+	reader(string, cms, 3);
+	CuAssertTrue(tc, !strcmp("345",string));
+
+	reader(string, cms, 3);
+	CuAssertTrue(tc, !strcmp("67",string));
+
+	ret = reader(string, cms, 3);
+	CuAssertTrue(tc, (ret == 0));
 
 	return;
 }

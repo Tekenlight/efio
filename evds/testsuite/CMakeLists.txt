@@ -17,6 +17,7 @@ POCO_SOURCES_AUTO( TEST_SRCS_5 test_ev_paqueue.c)
 POCO_SOURCES_AUTO( TEST_SRCS_6 test_ev_pqueue.c)
 POCO_SOURCES_AUTO( TEST_SRCS_7 test_ev_mpiqueue.c)
 POCO_SOURCES_AUTO( TEST_SRCS_8 test_ev_memory_buffer.cpp)
+POCO_SOURCES_AUTO( TEST_SRCS_9 test_ev_chunked_stream.cpp)
 
 # Headers
 
@@ -36,7 +37,7 @@ add_executable( ${TESTUNIT5} ${TEST_SRCS_5} )
 add_executable( ${TESTUNIT6} ${TEST_SRCS_6} )
 add_executable( ${TESTUNIT7} ${TEST_SRCS_7} )
 add_executable( ${TESTUNIT8} ${TEST_SRCS_8} )
-add_executable( ${TESTUNIT9} ${TEST_SRCS_8} )
+add_executable( ${TESTUNIT9} ${TEST_SRCS_9} )
 if(ANDROID)
 	add_test(NAME ${TESTUNIT1} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} 
             COMMAND ${CMAKE_COMMAND} -DANDROID_NDK=${ANDROID_NDK} -DLIBRARY_DIR=${CMAKE_BINARY_DIR}/lib -DUNITTEST=${CMAKE_BINARY_DIR}/bin/${TESTUNIT1} -DTEST_PARAMETER=-all -P ${CMAKE_SOURCE_DIR}/cmake/ExecuteOnAndroid.cmake)
