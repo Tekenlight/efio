@@ -38,10 +38,8 @@ void * memory_buffer_list::node::get_buffer()
 memory_buffer_list::node::~node()
 {
 	//printf("In node destructor\n");
-#ifndef MEM_BUF_LIST_NEVER
 	free(_buffer);
 	_buffer = 0;
-#endif
 	_size = 0;
 	_next = 0;
 }
@@ -157,76 +155,3 @@ memory_buffer_list::~memory_buffer_list()
 	}
 }
 
-
-
-#ifdef MEM_BUF_LIST_NEVER
-
-struct test_inp {
-	memory_buffer_list * buf_list;
-	long no;
-};
-
-void * producer(void * inp)
-{
-	long i = 0L, n = 0L;
-	struct test_inp * inp_ptr = NULL;
-	inp_ptr = (struct test_inp *)inp;
-
-	n = inp_ptr->no;
-
-	for (i=0; i < n; i++) {
-		inp_ptr->buf_list->add_node((void*)i, 100);
-		//printf("Added %ld th\n",i);
-	}
-
-	return NULL;
-}
-
-void * consumer(void * inp)
-{
-	memory_buffer_list::node * np = 0;
-	long i = 0L, n = 0L, j= 0L;
-	struct test_inp * inp_ptr = NULL;
-	inp_ptr = (struct test_inp *)inp;
-	n = inp_ptr->no;
-
-	while (i < n) {
-		np = inp_ptr->buf_list->pop_head();
-		if (np) {
-			//printf("Got j=%ld, n=%ld\n",(long)np->get_buffer(), n);
-
-			// This condition is a test case, which ensures the 
-			// sequential nature of the queue.
-			if (i != (long)np->get_buffer()) exit(1);
-			i++;
-			delete np;
-		}
-	}
-	return NULL;
-}
-
-int main(int argc, char * argv[])
-{
-	struct test_inp inp;
-	pthread_t t1, t2;
-	void * retptr = NULL;
-
-	inp.no = atol(argv[1]);
-	inp.buf_list = new memory_buffer_list();
-
-	pthread_create(&t1, NULL, producer, &inp);
-	pthread_create(&t2, NULL, consumer, &inp);
-
-	pthread_join(t1, &retptr);
-	pthread_join(t2, &retptr);
-	/*
-	producer(&inp);
-	consumer(&inp);
-	*/
-
-	delete inp.buf_list;
-
-	return 0;
-}
-
-#endif
