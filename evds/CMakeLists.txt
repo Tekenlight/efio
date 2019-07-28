@@ -2,7 +2,7 @@ set(LIBNAME "evds")
 set(EV_LIBNAME "${LIBNAME}")
 
 # Sources
-file(GLOB SRCS_G "*.c")
+file(GLOB SRCS_G "*.c" "*.cpp")
 POCO_SOURCES_AUTO( SRCS ${SRCS_G})
 
 # Headers
