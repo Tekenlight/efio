@@ -189,6 +189,21 @@ size_t chunked_memory_stream::erase(size_t bytes)
 	return erased;
 }
 
+// Gets the available allocated, buffer at the head.
+// This way of accessing data will help to avoid
+// a memcpy
+void * chunked_memory_stream::get_buffer()
+{
+	return _buffer_list.get_head()->get_buffer();
+}
+
+// Gets length of the available allocated buffer at the head.
+// This way of accessing data will help to avoid
+size_t chunked_memory_stream::get_buffer_len()
+{
+	return _buffer_list.get_head()->get_buffer_len();
+}
+
 chunked_memory_stream::~chunked_memory_stream()
 {
 	//printf("In chunked_memory_stream destructor\n");

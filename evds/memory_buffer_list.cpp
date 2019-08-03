@@ -9,7 +9,7 @@ memory_buffer_list::node::node(): _next(0),_buffer(0),_size(0),_buffer_position_
 memory_buffer_list::node * memory_buffer_list::node::get_next()
 {
 	node *next = 0;
-	next = (node*)atomic_load(&_next);
+	next = (node*)std::atomic_load(&_next);
 	return next;
 }
 
@@ -22,7 +22,7 @@ void memory_buffer_list::node::set_buffer(void * buffer, size_t size)
 
 void memory_buffer_list::node::set_next(node * np)
 {
-	atomic_store(&_next,(uintptr_t)np);
+	std::atomic_store(&_next,(uintptr_t)np);
 }
 
 size_t memory_buffer_list::node::get_buffer_len()
@@ -65,7 +65,7 @@ memory_buffer_list::memory_buffer_list():_head(0),_tail(0)
 memory_buffer_list::node * memory_buffer_list::get_head()
 {
 	node * head;
-	head = (node*)atomic_load(&_head);
+	head = (node*)std::atomic_load(&_head);
 	return head;
 }
 
@@ -77,7 +77,7 @@ memory_buffer_list::node * memory_buffer_list::get_next(node * ptr)
 memory_buffer_list::node * memory_buffer_list::get_tail()
 {
 	node * tail;
-	tail = (node*)atomic_load(&_tail);
+	tail = (node*)std::atomic_load(&_tail);
 	return tail;
 }
 
@@ -88,7 +88,7 @@ void memory_buffer_list::add_node(void * buffer, size_t size)
 	node * old_tail = 0;
 	np->set_buffer(buffer,size);
 	np->set_next(0);
-	old_tail = (node*)atomic_exchange(&_tail,(uintptr_t)np);
+	old_tail = (node*)std::atomic_exchange(&_tail,(uintptr_t)np);
 	/* For a brief period of time,
 	 * 1. When the new tail node is being added there can be a discontinuity in the list.
 	 * 2. Head can become null temporarily when the first record is being added.
@@ -97,7 +97,8 @@ void memory_buffer_list::add_node(void * buffer, size_t size)
 		old_tail->set_next(np);
 	}
 	else {
-		atomic_exchange(&_head , _tail);
+		//std::atomic_exchange(&_head , _tail);
+		_head.exchange(_tail);
 	}
 
 	return;
@@ -106,7 +107,7 @@ void memory_buffer_list::add_node(void * buffer, size_t size)
 memory_buffer_list::node * memory_buffer_list::pop_head()
 {
 	node * hp = 0;
-	node * tail = (node*)atomic_load(&_tail);
+	node * tail = (node*)std::atomic_load(&_tail);
 	node * next = 0;
 	/* This is a variation from the generic queue implementation,
 	 * because
@@ -123,14 +124,15 @@ memory_buffer_list::node * memory_buffer_list::pop_head()
 		 * once it is available, no other thread will pop it out
 		 * therefore no need for marking the head etc.
 		 * */
-		hp = (node*)atomic_load(&_head);
-		while (!hp) { EV_YIELD(); hp = (node*)atomic_load(&_head); }
+		hp = (node*)std::atomic_load(&_head);
+		while (!hp) { EV_YIELD(); hp = (node*)std::atomic_load(&_head); }
 		//EV_DBGP(" hp = [%p]\n",hp);
 		next = get_next(hp);
 		if (!next) {
 			bool flg = false;
 			uintptr_t newh = (uintptr_t)hp;
-			flg = atomic_compare_exchange_strong(&_tail,&newh,0);
+			//flg = std::atomic_compare_exchange_strong(&_tail,&newh,0);
+			flg = _tail.compare_exchange_strong(newh,0);
 			if (!flg) {
 				// The case when one thread popped out the single node, also the head
 				// and the other thread added concurrently
@@ -151,7 +153,7 @@ memory_buffer_list::node * memory_buffer_list::pop_head()
 			 * initially here, we should change it to the next pointer in
 			 * the chain.
 			 * */
-			atomic_compare_exchange_strong(&_head,&h,(uintptr_t)next);
+			std::atomic_compare_exchange_strong(&_head,&h,(uintptr_t)next);
 		}
 	}
 	return hp;
@@ -161,7 +163,7 @@ memory_buffer_list::~memory_buffer_list()
 {
 	//printf("in memory_buffer_list destructor\n");
 	node * p = 0, *q = 0;
-	p = (node*)atomic_load(&_head);
+	p = (node*)std::atomic_load(&_head);
 	while (p != 0) {
 		q = p->get_next();
 		delete p;

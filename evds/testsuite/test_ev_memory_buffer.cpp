@@ -3,7 +3,6 @@
 #include <ev_include.h>
 #include <pthread.h>
 #include <stdbool.h>
-#include <stdatomic.h>
 #include <CuTest.h>
 #include <memory_buffer_list.h>
 

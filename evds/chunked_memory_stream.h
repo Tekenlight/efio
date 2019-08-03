@@ -6,9 +6,7 @@
 #include <sys/types.h>
 #include <memory_buffer_list.h>
 
-#define BUFFER_SIZE 4096
-
-class chunked_memory_stream {
+class __attribute__ ((visibility ("default"))) chunked_memory_stream {
 	// Chunked memory stream
 	// This class is used for buffering data coming in from a socket 
 	// One thread will read data from a socket fd and will enqueue, the
@@ -64,6 +62,16 @@ public:
 	// Moves the head of the data stream to the offset 0 + bytes
 	// Memory holding the data is freed.
 	// Returns the number of bytes erased.
+	
+	void * get_buffer();
+	// Gets the available allocated, buffer at the head.
+	// This way of accessing data will help to avoid
+	// a memcpy
+	
+	size_t get_buffer_len();
+	// Gets length of the available allocated buffer at the head.
+	// This way of accessing data will help to avoid
+
 
 	~chunked_memory_stream();
 

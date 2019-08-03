@@ -2,7 +2,7 @@
 #define MEMORY_BUFFER_LIST_H_INCLUDED
 
 #include <sys/types.h>
-#include <stdatomic.h>
+#include <atomic>
 #include <pthread.h>
 #include <ev_include.h>
 
@@ -53,7 +53,7 @@ public:
 
 			~node();
 		private:
-			atomic_uintptr_t _next;
+			std::atomic_uintptr_t _next;
 			void * _buffer;
 			size_t _size;
 			void * _buffer_position_ptr;
@@ -79,8 +79,8 @@ public:
 	~memory_buffer_list();
 
 private:
-	atomic_uintptr_t _head;
-	atomic_uintptr_t _tail;
+	std::atomic_uintptr_t _head;
+	std::atomic_uintptr_t _tail;
 };
 
 #endif

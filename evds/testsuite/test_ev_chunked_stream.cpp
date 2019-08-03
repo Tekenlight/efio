@@ -3,7 +3,6 @@
 #include <ev_include.h>
 #include <pthread.h>
 #include <stdbool.h>
-#include <stdatomic.h>
 #include <CuTest.h>
 #include <chunked_memory_stream.h>
 #include <string.h>
@@ -93,14 +92,17 @@ static void test_main(CuTest *tc)
 	memcpy(d, "67", 2);
 	cms.push(d, 2);
 
-	reader(string, cms, 3);
-	CuAssertTrue(tc, !strcmp("012",string));
+	reader(string, cms, 1);
+	CuAssertTrue(tc, !strcmp("0",string));
+
+	reader(string, cms, 1);
+	CuAssertTrue(tc, !strcmp("1",string));
 
 	reader(string, cms, 3);
-	CuAssertTrue(tc, !strcmp("345",string));
+	CuAssertTrue(tc, !strcmp("234",string));
 
 	reader(string, cms, 3);
-	CuAssertTrue(tc, !strcmp("67",string));
+	CuAssertTrue(tc, !strcmp("567",string));
 
 	ret = reader(string, cms, 3);
 	CuAssertTrue(tc, (ret == 0));
