@@ -204,6 +204,21 @@ size_t chunked_memory_stream::get_buffer_len()
 	return _buffer_list.get_head()->get_buffer_len();
 }
 
+size_t chunked_memory_stream::get_buffer_len(void * nodeptr)
+{
+	return ((memory_buffer_list::node *)(nodeptr))->get_buffer_len();
+}
+
+void * chunked_memory_stream::get_buffer(void * nodeptr)
+{
+	return ((memory_buffer_list::node *)(nodeptr))->get_buffer();
+}
+
+void * chunked_memory_stream::get_next(void * nodeptr)
+{
+	return (!nodeptr) ? (void*)(_buffer_list.get_head()) : (void*)(_buffer_list.get_next(((memory_buffer_list::node *)nodeptr))) ;
+}
+
 chunked_memory_stream::~chunked_memory_stream()
 {
 	//printf("In chunked_memory_stream destructor\n");
