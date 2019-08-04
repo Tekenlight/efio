@@ -194,24 +194,32 @@ size_t chunked_memory_stream::erase(size_t bytes)
 // a memcpy
 void * chunked_memory_stream::get_buffer()
 {
-	return _buffer_list.get_head()->get_buffer();
+	memory_buffer_list::node * head_ptr = _buffer_list.get_head();
+	return (head_ptr)?_buffer_list.get_head()->get_buffer():0;
 }
 
 // Gets length of the available allocated buffer at the head.
 // This way of accessing data will help to avoid
 size_t chunked_memory_stream::get_buffer_len()
 {
-	return _buffer_list.get_head()->get_buffer_len();
+	memory_buffer_list::node * head_ptr = _buffer_list.get_head();
+	return (head_ptr)?_buffer_list.get_head()->get_buffer_len():0;
 }
 
 size_t chunked_memory_stream::get_buffer_len(void * nodeptr)
 {
-	return ((memory_buffer_list::node *)(nodeptr))->get_buffer_len();
+	if (nodeptr)
+		return ((memory_buffer_list::node *)(nodeptr))->get_buffer_len();
+	else
+		return 0;
 }
 
 void * chunked_memory_stream::get_buffer(void * nodeptr)
 {
-	return ((memory_buffer_list::node *)(nodeptr))->get_buffer();
+	if (nodeptr)
+		return ((memory_buffer_list::node *)(nodeptr))->get_buffer();
+	else
+		return 0;
 }
 
 void * chunked_memory_stream::get_next(void * nodeptr)
