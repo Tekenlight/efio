@@ -155,6 +155,7 @@ size_t chunked_memory_stream::read(void *buffer, size_t bytes)
 // Returns the number of bytes erased.
 size_t chunked_memory_stream::erase(size_t bytes)
 {
+	puts("Hello world");
 	memory_buffer_list::node * node_ptr = 0;
 	void * node_buffer = 0;
 	size_t to_be_erased = 0;
@@ -162,10 +163,13 @@ size_t chunked_memory_stream::erase(size_t bytes)
 	size_t buffer_len = 0;
 
 	to_be_erased = bytes;
+		printf("1 To be erased = [%zu]\n", bytes);
 	node_ptr = _buffer_list.get_head();
 	while (to_be_erased && node_ptr) {
 		// First reach the node to start copying from
+		printf("2 To be erased = [%zu],\n", bytes);
 		if (to_be_erased >= node_ptr->get_buffer_len()) {
+		printf("3 To be erased = [%zu],\n", bytes);
 			to_be_erased -= node_ptr->get_buffer_len();
 			erased += node_ptr->get_buffer_len();
 			_buffer_list.pop_head();
@@ -175,13 +179,20 @@ size_t chunked_memory_stream::erase(size_t bytes)
 
 		buffer_len = node_ptr->get_buffer_len();
 		node_buffer = node_ptr->get_buffer();
+		printf("4 To be erased = [%zu], \n buffer = [%s]\n", bytes, node_buffer);
+		/*
 		for (int i = 0; i < (buffer_len - to_be_erased) ; i++) {
 			*((char*)(node_buffer) + i) = *((char*)(node_buffer) + to_be_erased + i);
 		}
+		*/
+		node_ptr->shift_buffer_position(to_be_erased);
+		node_buffer = node_ptr->get_buffer();
+		printf("5 To be erased = [%zu], \n buffer = [%s]\n", bytes, node_buffer);
 		buffer_len -= to_be_erased;
 		erased += to_be_erased;
-		node_ptr->set_buffer(node_buffer, buffer_len);
+		//node_ptr->set_buffer(node_buffer, buffer_len);
 		to_be_erased = 0;
+		printf("6 Buffer len = [%zu] to_be_erased = [%zu]\n", buffer_len, to_be_erased);
 
 		break;
 	}
@@ -195,7 +206,7 @@ size_t chunked_memory_stream::erase(size_t bytes)
 void * chunked_memory_stream::get_buffer()
 {
 	memory_buffer_list::node * head_ptr = _buffer_list.get_head();
-	return (head_ptr)?_buffer_list.get_head()->get_buffer():0;
+	return (head_ptr)?head_ptr->get_buffer():0;
 }
 
 // Gets length of the available allocated buffer at the head.
@@ -203,7 +214,7 @@ void * chunked_memory_stream::get_buffer()
 size_t chunked_memory_stream::get_buffer_len()
 {
 	memory_buffer_list::node * head_ptr = _buffer_list.get_head();
-	return (head_ptr)?_buffer_list.get_head()->get_buffer_len():0;
+	return (head_ptr)?head_ptr->get_buffer_len():0;
 }
 
 size_t chunked_memory_stream::get_buffer_len(void * nodeptr)
