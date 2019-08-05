@@ -180,11 +180,6 @@ size_t chunked_memory_stream::erase(size_t bytes)
 		buffer_len = node_ptr->get_buffer_len();
 		node_buffer = node_ptr->get_buffer();
 		printf("4 To be erased = [%zu], \n buffer = [%s]\n", bytes, node_buffer);
-		/*
-		for (int i = 0; i < (buffer_len - to_be_erased) ; i++) {
-			*((char*)(node_buffer) + i) = *((char*)(node_buffer) + to_be_erased + i);
-		}
-		*/
 		node_ptr->shift_buffer_position(to_be_erased);
 		node_buffer = node_ptr->get_buffer();
 		printf("5 To be erased = [%zu], \n buffer = [%s]\n", bytes, node_buffer);
