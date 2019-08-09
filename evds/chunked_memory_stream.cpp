@@ -163,13 +163,10 @@ size_t chunked_memory_stream::erase(size_t bytes)
 	size_t buffer_len = 0;
 
 	to_be_erased = bytes;
-		printf("1 To be erased = [%zu]\n", bytes);
 	node_ptr = _buffer_list.get_head();
 	while (to_be_erased && node_ptr) {
 		// First reach the node to start copying from
-		printf("2 To be erased = [%zu],\n", bytes);
 		if (to_be_erased >= node_ptr->get_buffer_len()) {
-		printf("3 To be erased = [%zu],\n", bytes);
 			to_be_erased -= node_ptr->get_buffer_len();
 			erased += node_ptr->get_buffer_len();
 			_buffer_list.pop_head();
@@ -179,15 +176,11 @@ size_t chunked_memory_stream::erase(size_t bytes)
 
 		buffer_len = node_ptr->get_buffer_len();
 		node_buffer = node_ptr->get_buffer();
-		printf("4 To be erased = [%zu], \n buffer = [%s]\n", bytes, node_buffer);
 		node_ptr->shift_buffer_position(to_be_erased);
 		node_buffer = node_ptr->get_buffer();
-		printf("5 To be erased = [%zu], \n buffer = [%s]\n", bytes, node_buffer);
 		buffer_len -= to_be_erased;
 		erased += to_be_erased;
-		//node_ptr->set_buffer(node_buffer, buffer_len);
 		to_be_erased = 0;
-		printf("6 Buffer len = [%zu] to_be_erased = [%zu]\n", buffer_len, to_be_erased);
 
 		break;
 	}

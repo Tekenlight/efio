@@ -93,3 +93,5 @@ evthrpool/testsuite/CTestTestfile.cmake
 evthrpool/testsuite/Makefile
 evthrpool/testsuite/cmake_install.cmake
 build
+
+CMakeFiles

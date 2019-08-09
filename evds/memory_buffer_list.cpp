@@ -37,7 +37,7 @@ void * memory_buffer_list::node::get_buffer()
 
 void memory_buffer_list::node::shift_buffer_position(size_t bytes)
 {
-	printf("BPP %ld bytes %zu buffer %ld size %zu\n",_buffer_position_ptr, bytes, _buffer, _size);
+	//printf("BPP %ld bytes %zu buffer %ld size %zu\n",_buffer_position_ptr, bytes, _buffer, _size);
 	if (((char*)_buffer_position_ptr + bytes) < ((char*)_buffer + _size)) {
 		_buffer_position_ptr = (void*)((char*)_buffer_position_ptr + bytes);
 		_size -= bytes;

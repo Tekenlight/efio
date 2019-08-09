@@ -7,6 +7,7 @@ set(TESTUNIT6 "${LIBNAME}-pqueue-testrunner")
 set(TESTUNIT7 "${LIBNAME}-spiqueue-testrunner")
 set(TESTUNIT8 "${LIBNAME}-membuffer-testrunner")
 set(TESTUNIT9 "${LIBNAME}-chunkstream-testrunner")
+set(TESTUNIT10 "${LIBNAME}-buf_stream-testrunner")
 
 # Sources
 POCO_SOURCES_AUTO( TEST_SRCS_1 test_ev_stack.c)
@@ -18,6 +19,7 @@ POCO_SOURCES_AUTO( TEST_SRCS_6 test_ev_pqueue.c)
 POCO_SOURCES_AUTO( TEST_SRCS_7 test_ev_mpiqueue.c)
 POCO_SOURCES_AUTO( TEST_SRCS_8 test_ev_memory_buffer.cpp)
 POCO_SOURCES_AUTO( TEST_SRCS_9 test_ev_chunked_stream.cpp)
+POCO_SOURCES_AUTO( TEST_SRCS_10 test_ev_buffered_stream.cpp)
 
 # Headers
 
@@ -38,6 +40,7 @@ add_executable( ${TESTUNIT6} ${TEST_SRCS_6} )
 add_executable( ${TESTUNIT7} ${TEST_SRCS_7} )
 add_executable( ${TESTUNIT8} ${TEST_SRCS_8} )
 add_executable( ${TESTUNIT9} ${TEST_SRCS_9} )
+add_executable( ${TESTUNIT10} ${TEST_SRCS_10} )
 if(ANDROID)
 	add_test(NAME ${TESTUNIT1} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} 
             COMMAND ${CMAKE_COMMAND} -DANDROID_NDK=${ANDROID_NDK} -DLIBRARY_DIR=${CMAKE_BINARY_DIR}/lib -DUNITTEST=${CMAKE_BINARY_DIR}/bin/${TESTUNIT1} -DTEST_PARAMETER=-all -P ${CMAKE_SOURCE_DIR}/cmake/ExecuteOnAndroid.cmake)
@@ -57,6 +60,8 @@ if(ANDROID)
 			COMMAND ${CMAKE_COMMAND} -DANDROID_NDK=${ANDROID_NDK} -DLIBRARY_DIR=${CMAKE_BINARY_DIR}/lib -DUNITTEST=${CMAKE_BINARY_DIR}/bin/${TESTUNIT8} -DTEST_PARAMETER=-all -P ${CMAKE_SOURCE_DIR}/cmake/ExecuteOnAndroid.cmake)
 	add_test(NAME ${TESTUNIT9} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} 
 			COMMAND ${CMAKE_COMMAND} -DANDROID_NDK=${ANDROID_NDK} -DLIBRARY_DIR=${CMAKE_BINARY_DIR}/lib -DUNITTEST=${CMAKE_BINARY_DIR}/bin/${TESTUNIT9} -DTEST_PARAMETER=-all -P ${CMAKE_SOURCE_DIR}/cmake/ExecuteOnAndroid.cmake)
+	add_test(NAME ${TESTUNIT10} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} 
+			COMMAND ${CMAKE_COMMAND} -DANDROID_NDK=${ANDROID_NDK} -DLIBRARY_DIR=${CMAKE_BINARY_DIR}/lib -DUNITTEST=${CMAKE_BINARY_DIR}/bin/${TESTUNIT10} -DTEST_PARAMETER=-all -P ${CMAKE_SOURCE_DIR}/cmake/ExecuteOnAndroid.cmake)
 else()
 	add_test(NAME ${TESTUNIT1} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} COMMAND ${TESTUNIT1} -all)
 	add_test(NAME ${TESTUNIT2} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} COMMAND ${TESTUNIT2} -all)
@@ -67,6 +72,7 @@ else()
 	add_test(NAME ${TESTUNIT7} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} COMMAND ${TESTUNIT7} -all)
 	add_test(NAME ${TESTUNIT8} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} COMMAND ${TESTUNIT8} -all)
 	add_test(NAME ${TESTUNIT9} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} COMMAND ${TESTUNIT9} -all)
+	add_test(NAME ${TESTUNIT10} WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} COMMAND ${TESTUNIT10} -all)
 endif()
 target_link_libraries( "${TESTUNIT1}" evglobals evsync evds cutest "${SYSLIBS}")
 target_link_libraries( "${TESTUNIT2}" evglobals evsync evds cutest "${SYSLIBS}")
@@ -77,4 +83,5 @@ target_link_libraries( "${TESTUNIT6}" evglobals evsync evds cutest "${SYSLIBS}")
 target_link_libraries( "${TESTUNIT7}" evglobals evsync evds cutest "${SYSLIBS}")
 target_link_libraries( "${TESTUNIT8}" evglobals evsync evds cutest "${SYSLIBS}")
 target_link_libraries( "${TESTUNIT9}" evglobals evsync evds cutest "${SYSLIBS}")
+target_link_libraries( "${TESTUNIT10}" evglobals evsync evds cutest "${SYSLIBS}")
 
