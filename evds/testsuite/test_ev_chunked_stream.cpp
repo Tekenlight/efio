@@ -22,7 +22,7 @@ static int reader(char * string, chunked_memory_stream & cms, size_t offset, siz
 {
 	int n = 0;
 	memset(string,'\0',10);
-	n = cms.read(offset, string, length);
+	n = cms.copy(offset, string, length);
 	//printf("Read %d bytes from offset [%lu] and string is [%s]\n", n, offset, string);
 
 	return n;

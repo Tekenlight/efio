@@ -1,8 +1,9 @@
 #include <stdlib.h>
+#include <assert.h>
 #include <memory_buffer_list.h>
 
 
-memory_buffer_list::node::node(): _next(0),_buffer(0),_size(0),_buffer_position_ptr(0)
+memory_buffer_list::node::node(): _next(0),_buffer(0),_size(0),_buffer_position_ptr(0),_size_at_position(0)
 {
 }
 
@@ -18,6 +19,7 @@ void memory_buffer_list::node::set_buffer(void * buffer, size_t size)
 	_buffer = buffer;
 	_size = size;
 	_buffer_position_ptr = _buffer;
+	_size_at_position = _size;
 }
 
 void memory_buffer_list::node::set_next(node * np)
@@ -27,7 +29,7 @@ void memory_buffer_list::node::set_next(node * np)
 
 size_t memory_buffer_list::node::get_buffer_len()
 {
-	return _size;
+	return _size_at_position;
 }
 
 void * memory_buffer_list::node::get_buffer()
@@ -38,14 +40,17 @@ void * memory_buffer_list::node::get_buffer()
 void memory_buffer_list::node::shift_buffer_position(size_t bytes)
 {
 	//printf("BPP %ld bytes %zu buffer %ld size %zu\n",_buffer_position_ptr, bytes, _buffer, _size);
+	assert(((char*)_buffer_position_ptr + bytes) <= ((char*)_buffer + _size));
+
 	if (((char*)_buffer_position_ptr + bytes) < ((char*)_buffer + _size)) {
 		_buffer_position_ptr = (void*)((char*)_buffer_position_ptr + bytes);
-		_size -= bytes;
+		_size_at_position -= bytes;
 	}
-	else if (((char*)_buffer_position_ptr + bytes) == ((char*)_buffer + _size)) {
+	else {
 		_buffer_position_ptr = NULL;
-		_size = 0;
+		_size_at_position = 0;
 	}
+	//printf("BPP %ld bytes %zu buffer %ld size %zu\n",_buffer_position_ptr, bytes, _buffer, _size);
 }
 
 
@@ -57,6 +62,7 @@ memory_buffer_list::node::~node()
 	_size = 0;
 	_next = 0;
 	_buffer_position_ptr = NULL;
+	_size_at_position = 0;
 }
 
 memory_buffer_list::memory_buffer_list():_head(0),_tail(0)

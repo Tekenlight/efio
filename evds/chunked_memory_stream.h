@@ -17,14 +17,14 @@ class __attribute__ ((visibility ("default"))) chunked_memory_stream {
 public:
 	chunked_memory_stream();
 
-	int push(void * buffer, size_t bytes);
+	size_t push(void * buffer, size_t bytes);
 	// Transfers 'bytes' number of bytes to the chunked_memory_stream.
 	// From the memory buffer.
 	// The caller is expected to manage the memory for buffer.
 	// Returns the number of bytes transferred.
 	//
 
-	size_t read(size_t start_pos, void *buffer, size_t bytes);
+	size_t copy(size_t start_pos, void *buffer, size_t bytes);
 	// Copies 'bytes' number of bytes from the chunked_memory_stream,
 	// the data is copied starting at offset '0 + start_pos'.
 	// If there is less data, as many bytes as there are are copied

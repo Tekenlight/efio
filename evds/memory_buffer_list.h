@@ -56,6 +56,7 @@ public:
 			std::atomic_uintptr_t _next;
 			void * _buffer;
 			size_t _size;
+			size_t _size_at_position;
 			void * _buffer_position_ptr;
 	};
 	memory_buffer_list();

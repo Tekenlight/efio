@@ -9,10 +9,10 @@ chunked_memory_stream::chunked_memory_stream()
 // From the memory buffer.
 // The caller is expected to manage the memory for buffer.
 // Returns the number of bytes transferred.
-int chunked_memory_stream::push(void * buffer, size_t bytes)
+size_t chunked_memory_stream::push(void * buffer, size_t bytes)
 {
-	_buffer_list.add_node(buffer,bytes);
-	return 0;
+	if (bytes) _buffer_list.add_node(buffer,bytes);
+	return bytes;
 }
 
 // Copies 'bytes' number of bytes from the chunked_memory_stream,
@@ -30,7 +30,7 @@ int chunked_memory_stream::push(void * buffer, size_t bytes)
 //
 // Returns the number of bytes copied, or 0 if no data is available
 // or -1 if there is any error.
-size_t chunked_memory_stream::read(size_t start_pos, void *buffer, size_t bytes)
+size_t chunked_memory_stream::copy(size_t start_pos, void *buffer, size_t bytes)
 {
 	memory_buffer_list::node * node_ptr = 0;
 	void * node_buffer = 0;
@@ -155,7 +155,6 @@ size_t chunked_memory_stream::read(void *buffer, size_t bytes)
 // Returns the number of bytes erased.
 size_t chunked_memory_stream::erase(size_t bytes)
 {
-	puts("Hello world");
 	memory_buffer_list::node * node_ptr = 0;
 	void * node_buffer = 0;
 	size_t to_be_erased = 0;
@@ -166,6 +165,7 @@ size_t chunked_memory_stream::erase(size_t bytes)
 	node_ptr = _buffer_list.get_head();
 	while (to_be_erased && node_ptr) {
 		// First reach the node to start copying from
+		//printf("before: to_be_erased = %zu node_ptr->get_buffer_len() = %zu\n", to_be_erased , (node_ptr->get_buffer_len()));
 		if (to_be_erased >= node_ptr->get_buffer_len()) {
 			to_be_erased -= node_ptr->get_buffer_len();
 			erased += node_ptr->get_buffer_len();
@@ -177,6 +177,7 @@ size_t chunked_memory_stream::erase(size_t bytes)
 		buffer_len = node_ptr->get_buffer_len();
 		node_buffer = node_ptr->get_buffer();
 		node_ptr->shift_buffer_position(to_be_erased);
+		//printf("after: to_be_erased = %zu node_ptr->get_buffer_len() = %zu\n", to_be_erased , (node_ptr->get_buffer_len()));
 		node_buffer = node_ptr->get_buffer();
 		buffer_len -= to_be_erased;
 		erased += to_be_erased;
