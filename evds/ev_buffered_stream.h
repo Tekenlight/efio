@@ -31,6 +31,8 @@ protected:
 	typedef std::basic_ios<char, std::char_traits<char> > ios;
 	typedef ios::openmode openmode;
 
+	static const int BUFFER_SIZE = 1024;
+
 public:
 	//ev_buffered_stream(std::streamsize bufferSize, openmode mode = ios::in);
 	ev_buffered_stream(chunked_memory_stream * memory_stream, std::streamsize bufsize, std::streamsize max_to_read = -1);
@@ -44,6 +46,8 @@ public:
 	virtual int sync();
 
 	void setMode(openmode mode);
+
+	size_t push_to_sync(char *buffer, std::streamsize bytes);
 
 	openmode getMode() const;
 
@@ -60,8 +64,9 @@ private:
 	chunked_memory_stream*	_memory_stream;
 	void*					_nodeptr;
 	size_t					_prev_len;
-	size_t					_max_to_read;
+	ssize_t					_max_to_read;
 	size_t					_cum_len;
+	char*					_wBuffer;
 
 	ev_buffered_stream(const ev_buffered_stream&);
 	ev_buffered_stream& operator = (const ev_buffered_stream&);
