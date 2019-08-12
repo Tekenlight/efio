@@ -59,14 +59,14 @@ private:
 	int flush_buffer();
 
 	std::streamsize			_bufsize;
-	char*					_pBuffer;
+	char*					_p_buffer;
 	openmode				_mode;
 	chunked_memory_stream*	_memory_stream;
 	void*					_nodeptr;
 	size_t					_prev_len;
 	ssize_t					_max_to_read;
 	size_t					_cum_len;
-	char*					_wBuffer;
+	char*					_w_buffer;
 
 	ev_buffered_stream(const ev_buffered_stream&);
 	ev_buffered_stream& operator = (const ev_buffered_stream&);

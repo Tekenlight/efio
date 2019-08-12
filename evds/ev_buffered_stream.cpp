@@ -3,8 +3,8 @@
 
 ev_buffered_stream::ev_buffered_stream(chunked_memory_stream * memory_stream, std::streamsize bufsize, std::streamsize max_to_read):
 		_bufsize(bufsize),
-		_pBuffer(0),
-		_wBuffer(0),
+		_p_buffer(0),
+		_w_buffer(0),
 		_mode(ios::out|ios::in),
 		_memory_stream(memory_stream),
 		_nodeptr(0),
@@ -12,20 +12,20 @@ ev_buffered_stream::ev_buffered_stream(chunked_memory_stream * memory_stream, st
 		_max_to_read(max_to_read),
 		_cum_len(0)
 {
-	this->setg(_pBuffer, _pBuffer, _pBuffer);
-	if(!_wBuffer) {
-		_wBuffer = (char*)malloc(BUFFER_SIZE);
-		memset(_wBuffer,0,BUFFER_SIZE);
+	this->setg(_p_buffer, _p_buffer, _p_buffer);
+	if(!_w_buffer) {
+		_w_buffer = (char*)malloc(BUFFER_SIZE);
+		memset(_w_buffer,0,BUFFER_SIZE);
 	}
-	this->setp(_wBuffer, _wBuffer+BUFFER_SIZE);
+	this->setp(_w_buffer, _w_buffer+BUFFER_SIZE);
 	if (0 == _max_to_read) _max_to_read = -1;
 }
 
 ev_buffered_stream::~ev_buffered_stream()
 {
 	flush_buffer();
-	free(_wBuffer);
-	_wBuffer = NULL;
+	free(_w_buffer);
+	_w_buffer = NULL;
 }
 
 int ev_buffered_stream::overflow(int c)
@@ -57,7 +57,7 @@ int ev_buffered_stream::underflow()
 	assert(n <=_bufsize);
 	if (n <= 0) return EOF;
 
-	this->setg(_pBuffer, _pBuffer, _pBuffer + n);
+	this->setg(_p_buffer, _p_buffer, _p_buffer + n);
 
 	// return next character
 	return (int)(*this->gptr());    
@@ -67,7 +67,7 @@ int ev_buffered_stream::sync()
 {
 	if (this->pptr() && this->pptr() > this->pbase()) {
 		//printf("%s:%d reached here\n",__FILE__, __LINE__);
-		//puts(_wBuffer);
+		//puts(_w_buffer);
 		if (flush_buffer() == -1) return -1;
 	}
 
@@ -94,7 +94,7 @@ size_t ev_buffered_stream::read_from_source(std::streamsize size)
 	if ((-1 == _max_to_read) || (_cum_len < _max_to_read)) {
 		//puts("read_from_source got called");
 
-		//printf("_pBuffer = [%p]\n",_pBuffer);
+		//printf("_p_buffer = [%p]\n",_p_buffer);
 
 		if ((-1 != _max_to_read) && ((_cum_len + size) > _max_to_read))
 			size = _max_to_read - _cum_len;
@@ -103,7 +103,7 @@ size_t ev_buffered_stream::read_from_source(std::streamsize size)
 
 		if(_nodeptr) {
 			len = _memory_stream->get_buffer_len(_nodeptr);
-			_pBuffer = (char*)_memory_stream->get_buffer(_nodeptr);
+			_p_buffer = (char*)_memory_stream->get_buffer(_nodeptr);
 			/* This is in order to limit the size read from the source
 			 * So that if there is any logic by the caller that after certain
 			 * length the stream should return EOF, the stream buffer
@@ -113,7 +113,7 @@ size_t ev_buffered_stream::read_from_source(std::streamsize size)
 			if (len > size) len = size;
 		}
 		else {
-			_pBuffer = NULL;
+			_p_buffer = NULL;
 			len = 0;
 		}
 
@@ -142,19 +142,19 @@ size_t ev_buffered_stream::write_to_sync(char *buffer, std::streamsize bytes)
 int ev_buffered_stream::flush_buffer()
 {
 	if (!(_mode & ios::out)) return EOF;
-	if (!_wBuffer) return -1;
+	if (!_w_buffer) return -1;
 
 	int n = int(this->pptr() - this->pbase());
 
 	if (n) {
 		//printf("%s:%d reached inside flush_buffer here\n",__FILE__, __LINE__);
-		//printf ("_mode = %x, ios::out = %x, ios::in = %x _wBuffer = %p\n",_mode, ios::out, ios::in, _wBuffer);
+		//printf ("_mode = %x, ios::out = %x, ios::in = %x _w_buffer = %p\n",_mode, ios::out, ios::in, _w_buffer);
 
 		if (write_to_sync(this->pbase(), n) == n) {
 			//printf("%s:%d reached inside flush_buffer here\n",__FILE__, __LINE__);
-			_wBuffer = (char*)malloc(BUFFER_SIZE);
-			memset(_wBuffer,0,BUFFER_SIZE);
-			this->setp(_wBuffer, _wBuffer+BUFFER_SIZE);
+			_w_buffer = (char*)malloc(BUFFER_SIZE);
+			memset(_w_buffer,0,BUFFER_SIZE);
+			this->setp(_w_buffer, _w_buffer+BUFFER_SIZE);
 			return n;
 		}
 	}
