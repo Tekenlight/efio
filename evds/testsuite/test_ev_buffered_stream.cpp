@@ -9,6 +9,38 @@
 #include <ev_buffered_stream.h>
 
 
+void test_main_1(CuTest *tc)
+{
+	chunked_memory_stream cms;
+	ev_buffered_stream buf(&cms, 1024);
+	char * a = NULL;
+	char * b = NULL;
+	char * c = NULL;
+	char * d = NULL;
+	char s[20] = {'\0'};
+	char s1[20] = {'\0'};
+
+	puts("test case 2");
+	std::ostream os(&buf);
+	os << "01";
+	os << "23";
+	os << "45";
+	os << "67";
+	buf.sync();
+
+	*s1 = '\0';
+	std::istream is(&buf);
+	int p = 0;
+	//printf("First char = %c\n",buf.sgetc());
+	while (EOF != (p = is.get())) {
+		s1[strlen(s1)+1] = '\0';
+		s1[strlen(s1)] = (char)(int)p;
+	}
+	puts(s1);
+
+	CuAssertTrue(tc, (!strcmp(s1,"01234567")));
+}
+
 void test_main(CuTest *tc)
 {
 	chunked_memory_stream cms;
@@ -66,6 +98,7 @@ static int run_ev_test()
     CuString *output = CuStringNew();
 
     SUITE_ADD_TEST(suite,test_main);
+    SUITE_ADD_TEST(suite,test_main_1);
 
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);
