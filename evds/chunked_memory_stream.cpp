@@ -30,7 +30,7 @@ size_t chunked_memory_stream::push(void * buffer, size_t bytes)
 //
 // Returns the number of bytes copied, or 0 if no data is available
 // or -1 if there is any error.
-size_t chunked_memory_stream::copy(size_t start_pos, void *buffer, size_t bytes)
+ssize_t chunked_memory_stream::copy(size_t start_pos, void *buffer, size_t bytes)
 {
 	memory_buffer_list::node * node_ptr = 0;
 	void * node_buffer = 0;

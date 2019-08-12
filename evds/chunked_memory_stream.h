@@ -24,7 +24,7 @@ public:
 	// Returns the number of bytes transferred.
 	//
 
-	size_t copy(size_t start_pos, void *buffer, size_t bytes);
+	ssize_t copy(size_t start_pos, void *buffer, size_t bytes);
 	// Copies 'bytes' number of bytes from the chunked_memory_stream,
 	// the data is copied starting at offset '0 + start_pos'.
 	// If there is less data, as many bytes as there are are copied
