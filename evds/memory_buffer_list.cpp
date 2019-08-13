@@ -90,17 +90,23 @@ memory_buffer_list::node * memory_buffer_list::get_tail()
 
 void memory_buffer_list::add_node(void * buffer, size_t size)
 {
+	//printf("%s:%d Here bytes = %zu buffer = %p\n%s", __FILE__,__LINE__,size,buffer,(char*)buffer);
 	node * np = new node();
 	uintptr_t unp = (uintptr_t)np;
 	node * old_tail = 0;
+	//printf("%s:%d Here bytes = %zu buffer = %p\n", __FILE__,__LINE__,size,buffer);
 	np->set_buffer(buffer,size);
+	//printf("%s:%d Here bytes = %zu buffer = %p\n", __FILE__,__LINE__,size,buffer);
 	np->set_next(0);
-	old_tail = (node*)std::atomic_exchange(&_tail,(uintptr_t)np);
+	//printf("%s:%d Here bytes = %zu buffer = %p\n", __FILE__,__LINE__,size,buffer);
+	old_tail = (node*)std::atomic_exchange(&_tail,(uintptr_t)unp);
 	/* For a brief period of time,
 	 * 1. When the new tail node is being added there can be a discontinuity in the list.
 	 * 2. Head can become null temporarily when the first record is being added.
 	 * */
+	//printf("%s:%d Here bytes = %zu buffer = %p\n", __FILE__,__LINE__,size,buffer);
 	if (old_tail) {
+	//printf("%s:%d Here bytes = %zu buffer = %p\n", __FILE__,__LINE__,size,buffer);
 		old_tail->set_next(np);
 	}
 	else {

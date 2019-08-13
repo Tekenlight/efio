@@ -11,7 +11,12 @@ chunked_memory_stream::chunked_memory_stream()
 // Returns the number of bytes transferred.
 size_t chunked_memory_stream::push(void * buffer, size_t bytes)
 {
-	if (bytes) _buffer_list.add_node(buffer,bytes);
+	//printf("%s:%d Here bytes = %zu buffer = %p\n", __FILE__,__LINE__,bytes,buffer);
+	//printf("%s",(char*) buffer);
+	if (bytes) {
+		//printf("%s:%d Here\n",__FILE__,__LINE__);
+		_buffer_list.add_node(buffer,bytes);
+	}
 	return bytes;
 }
 

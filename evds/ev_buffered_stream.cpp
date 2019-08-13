@@ -132,6 +132,7 @@ size_t ev_buffered_stream::push_to_sync(char *buffer, std::streamsize size)
 		if ((-1 != _max_len) && ((_cum_len + len) > _max_len))
 			len = _max_len - _cum_len;
 
+		//printf("%s:%d Here memory stream = %p\n",__FILE__, __LINE__, _memory_stream);
 		_memory_stream->push(buffer, len);
 
 		_cum_len += len;
