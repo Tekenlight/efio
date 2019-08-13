@@ -159,27 +159,28 @@ size_t ev_buffered_stream::write_to_sync(char *buffer, std::streamsize bytes)
 {
 	//printf("%s:%d reached here %zu\n",__FILE__, __LINE__, bytes);
 	//puts(buffer);
+	size_t transfered = 0;
 	{
 		char * pre_buffer = 0;
 		size_t pre_bytes = 0;
 		pre_write_buffer(buffer, bytes, &pre_buffer, &pre_bytes);
 		if ((pre_bytes) && (pre_buffer)) {
-			push_to_sync(pre_buffer, pre_bytes);
+			transfered += push_to_sync(pre_buffer, pre_bytes);
 		}
 	}
 
-	push_to_sync(buffer, bytes);
+	transfered += push_to_sync(buffer, bytes);
 
 	{
 		char * post_buffer = 0;
 		size_t post_bytes = 0;
 		post_write_buffer(buffer, bytes, &post_buffer, &post_bytes);
 		if ((post_bytes) && (post_buffer)) {
-			push_to_sync(post_buffer, post_bytes);
+			transfered += push_to_sync(post_buffer, post_bytes);
 		}
 	}
 
-	return bytes;
+	return transfered;
 }
 
 int ev_buffered_stream::flush_buffer()
