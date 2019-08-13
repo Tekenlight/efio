@@ -50,6 +50,8 @@ public:
 	size_t push_to_sync(char *buffer, std::streamsize bytes);
 
 	openmode getMode() const;
+	virtual void post_write_buffer(char* buffer, std::streamsize bytes, char **buffer_ptr, size_t *bytes_ptr);
+	virtual void pre_write_buffer(char* buffer, std::streamsize bytes, char **buffer_ptr, size_t *bytes_ptr);
 
 private:
 	virtual size_t read_from_source(std::streamsize);
@@ -64,7 +66,7 @@ private:
 	chunked_memory_stream*	_memory_stream;
 	void*					_nodeptr;
 	size_t					_prev_len;
-	ssize_t					_max_to_read;
+	ssize_t					_max_len;
 	size_t					_cum_len;
 	char*					_w_buffer;
 

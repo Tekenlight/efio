@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <ev_buffered_stream.h>
 
-ev_buffered_stream::ev_buffered_stream(chunked_memory_stream * memory_stream, std::streamsize bufsize, std::streamsize max_to_read):
+ev_buffered_stream::ev_buffered_stream(chunked_memory_stream * memory_stream, std::streamsize bufsize, std::streamsize max_len):
 		_bufsize(bufsize),
 		_p_buffer(0),
 		_w_buffer(0),
@@ -9,7 +9,7 @@ ev_buffered_stream::ev_buffered_stream(chunked_memory_stream * memory_stream, st
 		_memory_stream(memory_stream),
 		_nodeptr(0),
 		_prev_len(0),
-		_max_to_read(max_to_read),
+		_max_len(max_len),
 		_cum_len(0)
 {
 	this->setg(_p_buffer, _p_buffer, _p_buffer);
@@ -18,7 +18,7 @@ ev_buffered_stream::ev_buffered_stream(chunked_memory_stream * memory_stream, st
 		memset(_w_buffer,0,BUFFER_SIZE);
 	}
 	this->setp(_w_buffer, _w_buffer+BUFFER_SIZE);
-	if (0 == _max_to_read) _max_to_read = -1;
+	if (0 == _max_len) _max_len = -1;
 }
 
 ev_buffered_stream::~ev_buffered_stream()
@@ -89,15 +89,15 @@ size_t ev_buffered_stream::read_from_source(std::streamsize size)
 {
 	size_t len = 0;
 
-	//printf("%s:%d reached here %zu %zd\n",__FILE__, __LINE__, _prev_len, _max_to_read);
+	//printf("%s:%d reached here %zu %zd\n",__FILE__, __LINE__, _prev_len, _max_len);
 	_memory_stream->erase(_prev_len);
-	if ((-1 == _max_to_read) || (_cum_len < _max_to_read)) {
+	if ((-1 == _max_len) || (_cum_len < _max_len)) {
 		//puts("read_from_source got called");
 
 		//printf("_p_buffer = [%p]\n",_p_buffer);
 
-		if ((-1 != _max_to_read) && ((_cum_len + size) > _max_to_read))
-			size = _max_to_read - _cum_len;
+		if ((-1 != _max_len) && ((_cum_len + size) > _max_len))
+			size = _max_len - _cum_len;
 
 		_nodeptr = _memory_stream->get_next(0);
 
@@ -124,18 +124,61 @@ size_t ev_buffered_stream::read_from_source(std::streamsize size)
 	return len;
 }
 
-size_t ev_buffered_stream::push_to_sync(char *buffer, std::streamsize bytes)
+size_t ev_buffered_stream::push_to_sync(char *buffer, std::streamsize size)
 {
 	//printf("%s:%d reached here\n",__FILE__, __LINE__);
-	_memory_stream->push(buffer, bytes);
-	return bytes;
+	size_t len = size;
+	if ((-1 == _max_len) || (_cum_len < _max_len)) {
+		if ((-1 != _max_len) && ((_cum_len + len) > _max_len))
+			len = _max_len - _cum_len;
+
+		_memory_stream->push(buffer, len);
+
+		_cum_len += len;
+	}
+	return len;
+}
+
+void ev_buffered_stream::post_write_buffer(char* buffer, std::streamsize bytes, char **buffer_ptr, size_t *bytes_ptr)
+{
+	*buffer_ptr = 0;
+	*bytes_ptr = 0;
+
+	return;
+}
+
+void ev_buffered_stream::pre_write_buffer(char* buffer, std::streamsize bytes, char **buffer_ptr, size_t *bytes_ptr)
+{
+	*buffer_ptr = 0;
+	*bytes_ptr = 0;
+
+	return;
 }
 
 size_t ev_buffered_stream::write_to_sync(char *buffer, std::streamsize bytes)
 {
 	//printf("%s:%d reached here %zu\n",__FILE__, __LINE__, bytes);
 	//puts(buffer);
+	{
+		char * pre_buffer = 0;
+		size_t pre_bytes = 0;
+		pre_write_buffer(buffer, bytes, &pre_buffer, &pre_bytes);
+		if ((pre_bytes) && (pre_buffer)) {
+			push_to_sync(pre_buffer, pre_bytes);
+		}
+	}
+
 	push_to_sync(buffer, bytes);
+
+	{
+		char * post_buffer = 0;
+		size_t post_bytes = 0;
+		post_write_buffer(buffer, bytes, &post_buffer, &post_bytes);
+		if ((post_bytes) && (post_buffer)) {
+			push_to_sync(post_buffer, post_bytes);
+		}
+	}
+
 	return bytes;
 }
 
