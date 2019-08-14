@@ -31,7 +31,7 @@ protected:
 	typedef std::basic_ios<char, std::char_traits<char> > ios;
 	typedef ios::openmode openmode;
 
-	static const int BUFFER_SIZE = 1024;
+	static const int BUFFER_SIZE = 4096;
 
 public:
 	//ev_buffered_stream(std::streamsize bufferSize, openmode mode = ios::in);
