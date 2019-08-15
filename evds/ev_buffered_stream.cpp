@@ -10,15 +10,31 @@ ev_buffered_stream::ev_buffered_stream(chunked_memory_stream * memory_stream, st
 		_nodeptr(0),
 		_prev_len(0),
 		_max_len(max_len),
-		_cum_len(0)
+		_cum_len(0),
+		_prefix_len(0),
+		_suffix_len(0)
 {
 	this->setg(_p_buffer, _p_buffer, _p_buffer);
 	if(!_w_buffer) {
 		_w_buffer = (char*)malloc(BUFFER_SIZE);
 		memset(_w_buffer,0,BUFFER_SIZE);
 	}
-	this->setp(_w_buffer, _w_buffer+BUFFER_SIZE);
+	this->setp(_w_buffer+_prefix_len, _w_buffer+BUFFER_SIZE-_suffix_len);
 	if (0 == _max_len) _max_len = -1;
+}
+
+void ev_buffered_stream::set_prefix_len(size_t bytes)
+{
+	if (bytes > 6) std::abort();
+	_prefix_len = bytes;
+	this->setp(_w_buffer+_prefix_len, _w_buffer+BUFFER_SIZE-_suffix_len);
+}
+
+void ev_buffered_stream::set_suffix_len(size_t bytes)
+{
+	if (bytes > 4) std::abort();
+	_suffix_len = bytes;
+	this->setp(_w_buffer+_prefix_len, _w_buffer+BUFFER_SIZE-_suffix_len);
 }
 
 ev_buffered_stream::~ev_buffered_stream()
@@ -140,19 +156,13 @@ size_t ev_buffered_stream::push_to_sync(char *buffer, std::streamsize size)
 	return len;
 }
 
-void ev_buffered_stream::post_write_buffer(char* buffer, std::streamsize bytes, char **buffer_ptr, size_t *bytes_ptr)
+void ev_buffered_stream::get_prefix(char* buffer, std::streamsize bytes, char *buffer_ptr, size_t bytes_ptr)
 {
-	*buffer_ptr = 0;
-	*bytes_ptr = 0;
-
 	return;
 }
 
-void ev_buffered_stream::pre_write_buffer(char* buffer, std::streamsize bytes, char **buffer_ptr, size_t *bytes_ptr)
+void ev_buffered_stream::get_suffix(char* buffer, std::streamsize bytes, char *buffer_ptr, size_t bytes_ptr)
 {
-	*buffer_ptr = 0;
-	*bytes_ptr = 0;
-
 	return;
 }
 
@@ -161,25 +171,26 @@ size_t ev_buffered_stream::write_to_sync(char *buffer, std::streamsize bytes)
 	//printf("%s:%d reached here %zu\n",__FILE__, __LINE__, bytes);
 	//puts(buffer);
 	size_t transfered = 0;
-	{
-		char * pre_buffer = 0;
-		size_t pre_bytes = 0;
-		pre_write_buffer(buffer, bytes, &pre_buffer, &pre_bytes);
-		if ((pre_bytes) && (pre_buffer)) {
-			transfered += push_to_sync(pre_buffer, pre_bytes);
-		}
+	size_t size = 0;
+	size = bytes;
+	if(_prefix_len) {
+		char prefix[10] = {'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0'};
+		get_prefix(buffer+_prefix_len, bytes, prefix, _prefix_len);
+		if (strlen(prefix) != _prefix_len) std::abort();
+		memcpy(buffer, prefix, _prefix_len);
+		size += _prefix_len;
 	}
-
-	transfered += push_to_sync(buffer, bytes);
-
-	{
-		char * post_buffer = 0;
-		size_t post_bytes = 0;
-		post_write_buffer(buffer, bytes, &post_buffer, &post_bytes);
-		if ((post_bytes) && (post_buffer)) {
-			transfered += push_to_sync(post_buffer, post_bytes);
-		}
+	if (_suffix_len) {
+		char suffix[10] = {'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0'};
+		get_suffix(buffer+_prefix_len, bytes, suffix, _suffix_len);
+		if (strlen(suffix) != _suffix_len) std::abort();
+		memcpy(buffer+size, suffix, _suffix_len);
+		size += _suffix_len;
 	}
+	//printf("%s",buffer);
+	//puts("--------");
+
+	transfered += push_to_sync(buffer, size);
 
 	return transfered;
 }
@@ -193,13 +204,18 @@ int ev_buffered_stream::flush_buffer()
 
 	if (n) {
 		//printf("%s:%d reached inside flush_buffer here\n",__FILE__, __LINE__);
+		//printf("n = %d\n",n);
+		//printf("Buffer\n");
+		//puts((char*)(this->pbase()));
 		//printf ("_mode = %x, ios::out = %x, ios::in = %x _w_buffer = %p\n",_mode, ios::out, ios::in, _w_buffer);
 
-		if (write_to_sync(this->pbase(), n) == n) {
+		//if (write_to_sync(this->pbase(), n) >= n) {
+		if (write_to_sync(_w_buffer, n) >= n) {
 			//printf("%s:%d reached inside flush_buffer here\n",__FILE__, __LINE__);
 			_w_buffer = (char*)malloc(BUFFER_SIZE);
 			memset(_w_buffer,0,BUFFER_SIZE);
-			this->setp(_w_buffer, _w_buffer+BUFFER_SIZE);
+			//this->setp(_w_buffer, _w_buffer+BUFFER_SIZE);
+			this->setp(_w_buffer+_prefix_len, _w_buffer+BUFFER_SIZE-_suffix_len);
 			return n;
 		}
 	}

@@ -50,8 +50,10 @@ public:
 	size_t push_to_sync(char *buffer, std::streamsize bytes);
 
 	openmode getMode() const;
-	virtual void post_write_buffer(char* buffer, std::streamsize bytes, char **buffer_ptr, size_t *bytes_ptr);
-	virtual void pre_write_buffer(char* buffer, std::streamsize bytes, char **buffer_ptr, size_t *bytes_ptr);
+	virtual void get_prefix(char* buffer, std::streamsize bytes, char *prefix, size_t bytes_ptr);
+	virtual void get_suffix(char* buffer, std::streamsize bytes, char *suffix, size_t bytes_ptr);
+	void set_prefix_len(size_t bytes);
+	void set_suffix_len(size_t bytes);
 
 private:
 	virtual size_t read_from_source(std::streamsize);
@@ -69,6 +71,8 @@ private:
 	ssize_t					_max_len;
 	size_t					_cum_len;
 	char*					_w_buffer;
+	int						_prefix_len;
+	int						_suffix_len;
 
 	ev_buffered_stream(const ev_buffered_stream&);
 	ev_buffered_stream& operator = (const ev_buffered_stream&);
