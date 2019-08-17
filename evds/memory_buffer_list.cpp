@@ -92,6 +92,7 @@ memory_buffer_list::node * memory_buffer_list::get_tail()
 void memory_buffer_list::add_node(void * buffer, size_t size)
 {
 	//printf("[%p]:%s:%d here %p\n", pthread_self(), __FILE__, __LINE__, this);
+	//printf("%s----------------------------------------\n",buffer);
 	node * np = new node();
 	uintptr_t unp = (uintptr_t)np;
 	node * old_tail = 0;
