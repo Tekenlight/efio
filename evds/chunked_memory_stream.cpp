@@ -174,7 +174,8 @@ size_t chunked_memory_stream::erase(size_t bytes)
 		if (to_be_erased >= node_ptr->get_buffer_len()) {
 			to_be_erased -= node_ptr->get_buffer_len();
 			erased += node_ptr->get_buffer_len();
-			_buffer_list.pop_head();
+			node_ptr = _buffer_list.pop_head();
+			delete node_ptr;
 			node_ptr = _buffer_list.get_head();
 			continue;
 		}

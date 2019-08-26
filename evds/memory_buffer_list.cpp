@@ -72,8 +72,16 @@ memory_buffer_list::memory_buffer_list():_head(0),_tail(0)
 
 memory_buffer_list::node * memory_buffer_list::get_head()
 {
-	node * head;
-	head = (node*)std::atomic_load(&_head);
+	node * head = 0;
+	node * tail = (node*)std::atomic_load(&_tail);
+	/* If tail is NULL, queue is empty. */
+	if (tail) {
+		/* It is possible for head to become NULL temporarily
+		 * when tail queue is not empty. */
+		head = (node*)std::atomic_load(&_head);
+		while (!head) { EV_YIELD(); head = (node*)std::atomic_load(&_head); }
+	}
+	else head = 0;
 	return head;
 }
 
