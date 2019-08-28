@@ -131,7 +131,7 @@ static void FIFO_exit(atomic_int * guard, int counter)
 static atomic_long hit_count = 0;
 static atomic_long miss_count = 0;
 static atomic_long succ_count = 0;
-void * dequeue_ev_piqueue(ev_piqueue_type  pq_ptr)
+void * dequeue_ev_spiqueue(ev_piqueue_type  pq_ptr)
 {
 	struct __pis * first_element = NULL;
 	struct __pis * second_element = NULL;
@@ -191,7 +191,7 @@ void * dequeue_ev_piqueue(ev_piqueue_type  pq_ptr)
 	return return_data;
 }
 static int st_index = 0;
-void enqueue_ev_piqueue(ev_piqueue_type pq_ptr,void * data)
+void enqueue_ev_spiqueue(ev_piqueue_type pq_ptr,void * data)
 {
 	struct __pis * qe = NULL;
 	int e_count = 0, index = 0;
@@ -241,7 +241,7 @@ static int get_nearest_power_of_2(int n)
 	return two_to_n;
 }
 
-ev_piqueue_type create_ev_piqueue(int n)
+ev_piqueue_type create_ev_spiqueue(int n)
 {
 	int N = get_nearest_power_of_2(n);
 	struct ev_piqueue_s * pq_ptr = NULL;
@@ -259,7 +259,7 @@ ev_piqueue_type create_ev_piqueue(int n)
 
 	return pq_ptr;
 }
-void destroy_ev_piqueue(ev_piqueue_type * pq_ptr_ptr)
+void destroy_ev_spiqueue(ev_piqueue_type * pq_ptr_ptr)
 {
 	if(!(*pq_ptr_ptr)) EV_ABORT("");
 	printf("N = %d\n",(*pq_ptr_ptr)->N);
@@ -272,7 +272,7 @@ void destroy_ev_piqueue(ev_piqueue_type * pq_ptr_ptr)
 	(*pq_ptr_ptr) = NULL;
 	return;
 }
-void debug_ev_piqueue(ev_piqueue_type  pq_ptr, print_piqnode_func_type dbg_func )
+void debug_ev_spiqueue(ev_piqueue_type  pq_ptr, print_piqnode_func_type dbg_func )
 {
 	struct __pis * qe = NULL;
 

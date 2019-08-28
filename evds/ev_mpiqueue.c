@@ -66,7 +66,7 @@ static int basic_try_dequeue(struct basic_queue_s * q,void **return_data)
 }
 
 /*
-struct ev_piqueue_gl_s {
+struct ev_mpiqueue_gl_s {
 	struct ev_list_s list;
 	atomic_int e_guard;
 	atomic_int d_guard;
@@ -96,7 +96,7 @@ static void ev_nanosleep(long n)
 	nanosleep(&ts,NULL);
 }
 
-static void init_ev_piqueue_s(struct ev_piqueue_s * pq_ptr, int N)
+static void init_ev_mpiqueue_s(struct ev_piqueue_s * pq_ptr, int N)
 {
 	int prev_guard = 0;
 	pq_ptr->gl_array = malloc(N * sizeof(struct basic_queue_s *));
@@ -125,7 +125,7 @@ static void FIFO_exit(atomic_int * guard, int counter)
 	atomic_store_explicit(guard,counter,memory_order_relaxed);
 }
 
-int ev_piqueue_peek(struct ev_piqueue_s * pq_ptr)
+int ev_mpiqueue_peek(struct ev_piqueue_s * pq_ptr)
 {
 	if(!pq_ptr) EV_ABORT("");
 	return 0;
@@ -134,7 +134,7 @@ int ev_piqueue_peek(struct ev_piqueue_s * pq_ptr)
 static atomic_long hit_count = 0;
 static atomic_long miss_count = 0;
 static atomic_long succ_count = 0;
-void * dequeue_ev_piqueue(ev_piqueue_type  pq_ptr)
+void * dequeue_ev_mpiqueue(ev_piqueue_type  pq_ptr)
 {
 	struct __pis * first_element = NULL;
 	struct __pis * second_element = NULL;
@@ -144,7 +144,7 @@ void * dequeue_ev_piqueue(ev_piqueue_type  pq_ptr)
 
 	if(!pq_ptr) EV_ABORT("");
 
-	//if (ev_piqueue_is_empty(pq_ptr)) return NULL;
+	//if (ev_mpiqueue_is_empty(pq_ptr)) return NULL;
 
 	/* Get the list for current dequeue, send the next dequeue
 	 * to next list. */
@@ -194,7 +194,7 @@ void * dequeue_ev_piqueue(ev_piqueue_type  pq_ptr)
 	return return_data;
 }
 static int st_index = 0;
-void enqueue_ev_piqueue(ev_piqueue_type pq_ptr,void * data)
+void enqueue_ev_mpiqueue(ev_piqueue_type pq_ptr,void * data)
 {
 	struct __pis * qe = NULL;
 	int e_count = 0, index = 0;
@@ -244,7 +244,7 @@ static int get_nearest_power_of_2(int n)
 	return two_to_n;
 }
 
-ev_piqueue_type create_ev_piqueue(int n)
+ev_piqueue_type create_ev_mpiqueue(int n)
 {
 	int N = get_nearest_power_of_2(n);
 	struct ev_piqueue_s * pq_ptr = NULL;
@@ -258,11 +258,11 @@ ev_piqueue_type create_ev_piqueue(int n)
 
 	pq_ptr = malloc(sizeof(struct ev_piqueue_s));
 
-	init_ev_piqueue_s(pq_ptr,N);
+	init_ev_mpiqueue_s(pq_ptr,N);
 
 	return pq_ptr;
 }
-void destroy_ev_piqueue(ev_piqueue_type * pq_ptr_ptr)
+void destroy_ev_mpiqueue(ev_piqueue_type * pq_ptr_ptr)
 {
 	if(!(*pq_ptr_ptr)) EV_ABORT("");
 	printf("N = %d\n",(*pq_ptr_ptr)->N);
@@ -275,7 +275,7 @@ void destroy_ev_piqueue(ev_piqueue_type * pq_ptr_ptr)
 	(*pq_ptr_ptr) = NULL;
 	return;
 }
-void debug_ev_piqueue(ev_piqueue_type  pq_ptr, print_piqnode_func_type dbg_func )
+void debug_ev_mpiqueue(ev_piqueue_type  pq_ptr, print_piqnode_func_type dbg_func )
 {
 	struct __pis * qe = NULL;
 

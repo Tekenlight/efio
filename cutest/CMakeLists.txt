@@ -21,7 +21,7 @@ if(WIN32)
 endif(WIN32)
 
 #add_library( "${LIBNAME}" ${LIB_MODE} ${SRCS} )
-add_library( "${LIBNAME}" STATIC ${SRCS} )
+add_library( "${LIBNAME}" SHARED ${SRCS} )
 #add_library( "${EV_LIBNAME}" ALIAS "${LIBNAME}")
 set_target_properties( "${LIBNAME}"
     PROPERTIES

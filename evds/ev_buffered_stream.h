@@ -32,6 +32,12 @@ protected:
 	typedef ios::openmode openmode;
 
 	static const int BUFFER_SIZE = 4096;
+	size_t low_read_from_source(std::streamsize);
+
+	size_t low_write_to_sync(char * , std::streamsize);
+
+	int flush_buffer();
+
 
 public:
 	//ev_buffered_stream(std::streamsize bufferSize, openmode mode = ios::in);
@@ -54,13 +60,13 @@ public:
 	virtual void get_suffix(char* buffer, std::streamsize bytes, char *suffix, size_t bytes_ptr);
 	void set_prefix_len(size_t bytes);
 	void set_suffix_len(size_t bytes);
+	void consume_all_of_max_len();
+	virtual size_t read_from_source(std::streamsize);
+	virtual size_t write_to_sync(char * , std::streamsize);
+	int low_readch();
 
 private:
-	virtual size_t read_from_source(std::streamsize);
-
-	virtual size_t write_to_sync(char * , std::streamsize);
-
-	int flush_buffer();
+	size_t high_read_from_source(std::streamsize size);
 
 	std::streamsize			_bufsize;
 	char*					_p_buffer;
@@ -73,6 +79,8 @@ private:
 	char*					_w_buffer;
 	int						_prefix_len;
 	int						_suffix_len;
+	int						_consume_all_of_max_len;
+	int						_reading_buf_from_source;
 
 	ev_buffered_stream(const ev_buffered_stream&);
 	ev_buffered_stream& operator = (const ev_buffered_stream&);
