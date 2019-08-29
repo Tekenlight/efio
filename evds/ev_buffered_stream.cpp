@@ -55,17 +55,21 @@ ev_buffered_stream::~ev_buffered_stream()
 	 * Boundary condition:
 	 * The data consumed from the last buffer wont be erased from the memory_stream.
 	 * */
+	/*
 	erase_size = this->gptr() - this->eback();
 	if (erase_size > 0) {
+		printf("%s:%d _prev_len = %zu _max_len = %zu\n", __FILE__, __LINE__, _prev_len, _max_len);
 		_memory_stream->erase(erase_size);
 		_prev_len -= erase_size;
 	}
+	*/
 
 	/* 
 	 * If all of the data upto max_len has to be consumed,
 	 * it has to be erased from the memory_stream.
 	 */
 	if ((_consume_all_of_max_len) && (_mode & ios::in) && (_max_len > 0)) {
+		//printf("%s:%d _prev_len = %zu _max_len = %zu\n", __FILE__, __LINE__, _prev_len, _max_len);
 		while (low_read_from_source(_bufsize));
 	}
 
