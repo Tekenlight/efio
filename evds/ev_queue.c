@@ -259,6 +259,17 @@ void * dequeue(struct ev_queue_s * q_ptr)
 	return data;
 }
 
+int queue_empty(struct ev_queue_s * q_ptr)
+{
+	uintptr_t		tail = 0;
+	if (!q_ptr) {
+		printf("[%s:%d] Passed q_ptr is null\n",__FILE__,__LINE__);
+		abort();
+	}
+	tail = atomic_load(&(q_ptr->tail));
+	return (int)(tail == 0);
+}
+
 void enqueue(struct ev_queue_s * q_ptr,void * data)
 {
 	struct __s *	ptr = NULL;

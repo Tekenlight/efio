@@ -7,6 +7,7 @@ typedef struct ev_queue_s *ev_queue_type;
 typedef void (*print_qnode_func_type)(void*);
 
 __BEGIN_DECLS
+int queue_empty(struct ev_queue_s * q_ptr);
 int peek(struct ev_queue_s * q_ptr);
 void * dequeue(ev_queue_type );
 int try_dequeue(ev_queue_type, void** );

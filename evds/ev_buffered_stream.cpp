@@ -16,14 +16,12 @@ ev_buffered_stream::ev_buffered_stream(chunked_memory_stream * memory_stream, st
 		_consume_all_of_max_len(0),
 		_reading_buf_from_source(0)
 {
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 	this->setg(_p_buffer, _p_buffer, _p_buffer);
 	if(!_w_buffer) {
-		//printf("%s:%d reached here\n",__FILE__, __LINE__);
 		_w_buffer = (char*)malloc(BUFFER_SIZE);
 		memset(_w_buffer,0,BUFFER_SIZE);
 	}
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
+
 	this->setp(_w_buffer+_prefix_len, _w_buffer+BUFFER_SIZE-_suffix_len);
 	if (0 == _max_len) _max_len = -1;
 }
@@ -51,25 +49,11 @@ ev_buffered_stream::~ev_buffered_stream()
 {
 	ssize_t erase_size = 0;
 
-	/*
-	 * Boundary condition:
-	 * The data consumed from the last buffer wont be erased from the memory_stream.
-	 * */
-	/*
-	erase_size = this->gptr() - this->eback();
-	if (erase_size > 0) {
-		printf("%s:%d _prev_len = %zu _max_len = %zu\n", __FILE__, __LINE__, _prev_len, _max_len);
-		_memory_stream->erase(erase_size);
-		_prev_len -= erase_size;
-	}
-	*/
-
 	/* 
 	 * If all of the data upto max_len has to be consumed,
 	 * it has to be erased from the memory_stream.
 	 */
 	if ((_consume_all_of_max_len) && (_mode & ios::in) && (_max_len > 0)) {
-		//printf("%s:%d _prev_len = %zu _max_len = %zu\n", __FILE__, __LINE__, _prev_len, _max_len);
 		while (low_read_from_source(_bufsize));
 	}
 
@@ -81,29 +65,23 @@ ev_buffered_stream::~ev_buffered_stream()
 int ev_buffered_stream::overflow(int c)
 {
 	if (!(_mode & ios::out)) return EOF;
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 
 	if (flush_buffer() == std::streamsize(-1)) return EOF;
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 	if (c != EOF) {
 		*this->pptr() = (char)(c);
 		this->pbump(1);
 	}
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 
 	return c;
 }
 
 int ev_buffered_stream::underflow()
 {
-	//puts("underflow called");
 	if (!(_mode & ios::in)) return EOF;
 
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 	if (this->gptr() && (this->gptr() < this->egptr()))
 		return int(*this->gptr());
 
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 	// n will be <= _bufsize
 	size_t n = high_read_from_source(_bufsize);
 	assert(n <=_bufsize);
@@ -117,13 +95,9 @@ int ev_buffered_stream::underflow()
 
 int ev_buffered_stream::sync()
 {
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 	if (this->pptr() && this->pptr() > this->pbase()) {
-		//printf("%s:%d reached here\n",__FILE__, __LINE__);
-		//puts(_w_buffer);
 		if (flush_buffer() == -1) return -1;
 	}
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 
 	return 0;
 }
@@ -160,12 +134,9 @@ size_t ev_buffered_stream::low_read_from_source(std::streamsize size)
 {
 	size_t len = 0;
 
-	//printf("%s:%d reached here %zu %zd\n",__FILE__, __LINE__, _prev_len, _max_len);
 	_memory_stream->erase(_prev_len);
 	if ((-1 == _max_len) || (_cum_len < _max_len)) {
-		//puts("low_read_from_source got called");
 
-		//printf("_p_buffer = [%p]\n",_p_buffer);
 
 		if ((-1 != _max_len) && ((_cum_len + size) > _max_len))
 			size = _max_len - _cum_len;
@@ -188,7 +159,6 @@ size_t ev_buffered_stream::low_read_from_source(std::streamsize size)
 			len = 0;
 		}
 
-		//printf("Length = [%lu]\n",len);
 		_cum_len += len;
 	}
 	_prev_len = len;
@@ -211,13 +181,11 @@ size_t ev_buffered_stream::high_read_from_source(std::streamsize size)
 
 size_t ev_buffered_stream::push_to_sync(char *buffer, std::streamsize size)
 {
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 	size_t len = size;
 	if ((-1 == _max_len) || (_cum_len < _max_len)) {
 		if ((-1 != _max_len) && ((_cum_len + len) > _max_len))
 			len = _max_len - _cum_len;
 
-		//printf("%s:%d Here memory stream = %p\n",__FILE__, __LINE__, _memory_stream);
 		_memory_stream->push(buffer, len);
 
 		_cum_len += len;
@@ -237,8 +205,6 @@ void ev_buffered_stream::get_suffix(char* buffer, std::streamsize bytes, char *b
 
 size_t ev_buffered_stream::low_write_to_sync(char *buffer, std::streamsize bytes)
 {
-	//printf("%s:%d reached here %zu\n",__FILE__, __LINE__, bytes);
-	//puts(buffer);
 	size_t transfered = 0;
 	size_t size = 0;
 	size = bytes;
@@ -256,8 +222,6 @@ size_t ev_buffered_stream::low_write_to_sync(char *buffer, std::streamsize bytes
 		memcpy(buffer+size, suffix, _suffix_len);
 		size += _suffix_len;
 	}
-	//printf("%s",buffer);
-	//puts("--------");
 
 	transfered += push_to_sync(buffer, size);
 
@@ -271,32 +235,20 @@ size_t ev_buffered_stream::write_to_sync(char *buffer, std::streamsize bytes)
 
 int ev_buffered_stream::flush_buffer()
 {
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 	if (!(_mode & ios::out)) return EOF;
 	if (!_w_buffer) return -1;
 
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 	int n = int(this->pptr() - this->pbase());
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 
 	if (n) {
-		//printf("%s:%d reached inside flush_buffer here\n",__FILE__, __LINE__);
-		//printf("n = %d\n",n);
-		//printf("Buffer\n");
-		//puts((char*)(this->pbase()));
-		//printf ("_mode = %x, ios::out = %x, ios::in = %x _w_buffer = %p\n",_mode, ios::out, ios::in, _w_buffer);
 
-		//if (write_to_sync(this->pbase(), n) >= n) {
 		if (write_to_sync(_w_buffer, n) >= n) {
-			//printf("%s:%d reached inside flush_buffer here\n",__FILE__, __LINE__);
 			_w_buffer = (char*)malloc(BUFFER_SIZE);
 			memset(_w_buffer,0,BUFFER_SIZE);
-			//this->setp(_w_buffer, _w_buffer+BUFFER_SIZE);
 			this->setp(_w_buffer+_prefix_len, _w_buffer+BUFFER_SIZE-_suffix_len);
 			return n;
 		}
 	}
-	//printf("%s:%d reached here\n",__FILE__, __LINE__);
 
 	return -1;
 }
