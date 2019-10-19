@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <chunked_memory_stream.h>
 #include <string.h>
 
@@ -238,3 +239,15 @@ chunked_memory_stream::~chunked_memory_stream()
 	//printf("In chunked_memory_stream destructor\n");
 }
 
+
+/* This method is not concurrent. */
+void chunked_memory_stream::transfer(chunked_memory_stream * cms)
+{
+	if (!cms) std::abort();
+	memory_buffer_list::node* node_ptr = 0;
+	node_ptr = cms->_buffer_list.pop_head();
+	while (node_ptr) {
+		this->_buffer_list.add_node(node_ptr->get_buffer(), node_ptr->get_buffer_len());
+		node_ptr = cms->_buffer_list.pop_head();
+	}
+}

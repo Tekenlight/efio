@@ -72,6 +72,8 @@ public:
 	// Gets length of the available allocated buffer at the head.
 	// This way of accessing data will help to avoid
 
+	void transfer(chunked_memory_stream * cms);
+
 	size_t get_buffer_len(void * node);
 	void * get_buffer(void * node);
 	void * get_next(void * node);
