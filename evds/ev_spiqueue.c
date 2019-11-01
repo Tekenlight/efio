@@ -315,27 +315,11 @@ void * thr(void *param)
 	}
 
 	for (i=0;i<COUNT;i++,j++) {
-		//printf("THREAD1:0%d:%d\n",i,j);//fflush(stdout);
-		enqueue_ev_piqueue(pq_ptr,(void*)(long)j);
-		//enqueue_ev_piqueue(pq_ptr,(void*)(long)j);
-		//usleep(1);
-		dequeue_ev_piqueue(pq_ptr);
-		//dequeue_ev_piqueue(pq_ptr);
-		//j++;i++;
-		//printf("THREAD1:0%d:%d\n",i,(int)dequeue_ev_piqueue(pq_ptr));fflush(stdout);
+		enqueue_ev_spiqueue(pq_ptr,(void*)(long)j);
+
+		dequeue_ev_spiqueue(pq_ptr);
 	}
 
-	/*
-	for (i=0;i<COUNT;i++,j++) {
-		//printf("THREAD1:0%d:%d\n",i,j);//fflush(stdout);
-		//enqueue_ev_piqueue(pq_ptr,(void*)(long)j);
-		//usleep(1);
-		dequeue_ev_piqueue(pq_ptr);
-		//printf("THREAD1:0%d:%d\n",i,(int)dequeue_ev_piqueue(pq_ptr));fflush(stdout);
-	}
-	*/
-
-	//printf("THR1 OVER\n");
 
 	return NULL;
 }
@@ -347,7 +331,7 @@ void * thr_TEST(void *param)
 	ev_piqueue_type pq_ptr = (ev_piqueue_type)param;
 	for (i=0;i<128;i++,j++) {
 		enqueue_ev_piqueue(pq_ptr,(void*)(long)j);
-		fd = (int)(long)dequeue_ev_piqueue(pq_ptr);
+		fd = (int)(long)dequeue_ev_spiqueue(pq_ptr);
 		printf("THREAD_TEST:%d:%d\n",i,fd);fflush(stdout);
 	}
 
@@ -415,7 +399,7 @@ int main()
 	{
 		void * p;
 		int i = 0;
-		while (NULL != (p = dequeue_ev_piqueue(q))) {
+		while (NULL != (p = dequeue_ev_spiqueue(q))) {
 			++i;
 			fd = (int)(long)p;
 			printf("[MAIN]:%d:%d\n",i,fd);//fflush(stdout);
