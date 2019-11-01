@@ -53,7 +53,7 @@ struct thr_inp_data_s {
 	int						_thr_index;
 };
 
-void thr_wakeup_sig_handler(int s)
+static void thr_wakeup_sig_handler(int s)
 {
 	return;
 }
@@ -120,6 +120,22 @@ static void * thread_loop(void *data)
 	return NULL;
 }
 
+static void wake_all_threads(struct thread_pool_s *pool, int immediate)
+{
+	struct task_s * qe = NULL;
+	for (int i = 0; i < pool->_num_threads; i++) {
+		qe = malloc(sizeof(struct task_s));
+		qe->_task_function = NULL;
+		enqueue(pool->_task_queue,qe);
+	}
+	return;
+}
+
+static void wake_any_one_thread(struct thread_pool_s *pool)
+{
+	return;
+}
+
 struct thread_pool_s * create_thread_pool(int num_threads)
 {
 	struct thread_pool_s * pool =NULL;
@@ -167,7 +183,7 @@ struct thread_pool_s * create_thread_pool(int num_threads)
 	return pool;
 }
 
-void free_thread_pool(struct thread_pool_s *pool)
+static void free_thread_pool(struct thread_pool_s *pool)
 {
 	struct task_s * qe = NULL;
 
@@ -175,22 +191,6 @@ void free_thread_pool(struct thread_pool_s *pool)
 	destroy_ev_queue(pool->_task_queue);
 	destroy_ev_queue(pool->_free_thr_queue);
 
-	return;
-}
-
-static void wake_all_threads(struct thread_pool_s *pool, int immediate)
-{
-	struct task_s * qe = NULL;
-	for (int i = 0; i < pool->_num_threads; i++) {
-		qe = malloc(sizeof(struct task_s));
-		qe->_task_function = NULL;
-		enqueue(pool->_task_queue,qe);
-	}
-	return;
-}
-
-static void wake_any_one_thread(struct thread_pool_s *pool)
-{
 	return;
 }
 

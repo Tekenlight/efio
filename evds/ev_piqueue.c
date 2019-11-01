@@ -108,6 +108,9 @@ void * dequeue_ev_piqueue(ev_piqueue_type  pq_ptr)
 	//atomic_fetch_add_explicit(&(pq_ptr->ub_count),-1,memory_order_relaxed);
 
 	int i = 0;
+	index = st_dindex; st_dindex++;;
+	index = index % pq_ptr->N;
+	//index = 0;
 	while(1) {
 		/* If N empty queues are encountered, there is nothing. */
 		if (i == pq_ptr->N) break;
@@ -116,16 +119,15 @@ void * dequeue_ev_piqueue(ev_piqueue_type  pq_ptr)
 		/* Data present in the piqueue. */
 		/*
 		*/
-		if (-1 == try_dequeue(pq_ptr->gl_array[index],&return_data)) {
+		int ret = try_dequeue(pq_ptr->gl_array[index],&return_data);
+		if (-1 == ret && !return_data) {
+		//if (-1 == ret) {
 			//atomic_fetch_add_explicit(&miss_count,1,memory_order_relaxed);
 			EV_YIELD();
-			i = 0;
+			i=0;
+			//continue;
 		}
 		else {
-			/*
-		return_data = dequeue(pq_ptr->gl_array[index]);
-		*/
-			//atomic_fetch_add_explicit(&hit_count,1,memory_order_relaxed);
 			if (return_data) {
 				atomic_fetch_add_explicit(&succ_count,-1,memory_order_relaxed);
 				break;
@@ -133,14 +135,14 @@ void * dequeue_ev_piqueue(ev_piqueue_type  pq_ptr)
 			else {
 				/* try_dequeue returned 0 and queue is empty,
 				 * go on to the next queue. */
-				i++;
 			}
 		}
 			/*
 		*/
 		//d_count = atomic_fetch_add_explicit(&(pq_ptr->deq_counter),1,memory_order_relaxed);
-		index = st_dindex; st_dindex++;;
+		index++;
 		index = index % pq_ptr->N;
+		i++;
 	}
 
 	return return_data;

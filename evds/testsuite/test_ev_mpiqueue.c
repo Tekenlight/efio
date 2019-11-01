@@ -11,12 +11,14 @@
 #include <time.h>
 #include <CuTest.h>
 
-
+extern void * dequeue_ev_mpiqueue(ev_piqueue_type  pq_ptr);
 struct thr_inp {
 	ev_piqueue_type pq_ptr;
 	int N;
 	int slot;
+	int dequeued;
 };
+
 
 void * thr(void *param)
 {
@@ -31,11 +33,11 @@ void * thr(void *param)
 	int COUNT = N/4;
 
 	if (slot == 5) {
-		j = 0;
+		j = 1;
 		COUNT = N;
 	}
 	else {
-		j = slot*N/4;
+		j = 1+slot*N/4;
 		COUNT = N/4;
 	}
 
@@ -44,7 +46,7 @@ void * thr(void *param)
 		enqueue_ev_piqueue(pq_ptr,(void*)(long)j);
 		//enqueue_ev_piqueue(pq_ptr,(void*)(long)j);
 		//usleep(1);
-		dequeue_ev_piqueue(pq_ptr);
+		if (NULL != dequeue_ev_piqueue(pq_ptr)) inp->dequeued++;
 		//dequeue_ev_piqueue(pq_ptr);
 		//j++;i++;
 		//printf("THREAD1:0%d:%d\n",i,(int)dequeue_ev_piqueue(pq_ptr));fflush(stdout);
@@ -101,14 +103,23 @@ static void test_main(CuTest *tc)
 
 	inp1.pq_ptr = q;
 	inp1.N = 4*1024*1024;
+	inp1.dequeued = 0;
+
 	inp2.pq_ptr = q;
 	inp2.N = 4*1024*1024;
+	inp2.dequeued = 0;
+
 	inp3.pq_ptr = q;
 	inp3.N = 4*1024*1024;
+	inp3.dequeued = 0;
+
 	inp4.pq_ptr = q;
 	inp4.N = 4*1024*1024;
+	inp4.dequeued = 0;
+
 	inp5.pq_ptr = q;
 	inp5.N = 4*1024*1024;
+	inp5.dequeued = 0;
 
 	/*
 	pthread_create(&t0,NULL,thr_TEST,q);
@@ -149,7 +160,10 @@ static void test_main(CuTest *tc)
 
 	//destroy_ev_queue(&q);
 
-	CuAssertTrue(tc, i==0);
+	//CuAssertTrue(tc, i==0);
+	printf("Value 4*1024*1024 = %d\n", 4*1024*1024);
+	printf("Dequeued          = %d\n", (i+inp1.dequeued+inp2.dequeued+inp3.dequeued+inp4.dequeued));
+	CuAssertTrue(tc, ((i+inp1.dequeued+inp2.dequeued+inp3.dequeued+inp4.dequeued) == 4*1024*1024));
 }
 
 
