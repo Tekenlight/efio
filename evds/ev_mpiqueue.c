@@ -36,7 +36,7 @@ static struct basic_queue_s * create_basic_queue()
 static int basic_enqueue(struct basic_queue_s * q, void *data)
 {
 	struct qe_s * qe = NULL;
-	if (pthread_mutex_lock(&(q->m))) return -1;
+	if (pthread_mutex_trylock(&(q->m))) return -1;
 	qe = malloc(sizeof(struct qe_s));
 	qe->data = data;
 	qe->next = NULL;
@@ -54,9 +54,11 @@ static int basic_enqueue(struct basic_queue_s * q, void *data)
 static int basic_try_dequeue(struct basic_queue_s * q,void **return_data)
 {
 	*return_data = NULL;
-	if (pthread_mutex_lock(&q->m)) return -1;
+	int ret = 0;
+	ret = pthread_mutex_trylock(&q->m);
+	if (ret != 0) { return -1; } 
 	if (q->head != NULL) {
-		*return_data = q->head;
+		*return_data = q->head->data;
 		q->head = q->head->next;
 		if (!(q->head)) q->tail = q->head; 
 	}
@@ -133,7 +135,6 @@ int ev_mpiqueue_peek(struct ev_piqueue_s * pq_ptr)
 
 static atomic_long hit_count = 0;
 static atomic_long miss_count = 0;
-static atomic_long succ_count = 0;
 void * dequeue_ev_mpiqueue(ev_piqueue_type  pq_ptr)
 {
 	struct __pis * first_element = NULL;
@@ -144,18 +145,8 @@ void * dequeue_ev_mpiqueue(ev_piqueue_type  pq_ptr)
 
 	if(!pq_ptr) EV_ABORT("");
 
-	//if (ev_mpiqueue_is_empty(pq_ptr)) return NULL;
-
-	/* Get the list for current dequeue, send the next dequeue
-	 * to next list. */
-	//d_count = atomic_fetch_add_explicit(&(pq_ptr->deq_counter),1,memory_order_relaxed);
-	//index = d_count % pq_ptr->N;
-
-
-	/* Decrement ub_count to show one less element. */
-	//atomic_fetch_add_explicit(&(pq_ptr->ub_count),-1,memory_order_relaxed);
-
 	int i = 0;
+	index = 0;
 	while(1) {
 		/* If N empty queues are encountered, there is nothing. */
 		if (i == pq_ptr->N) break;
@@ -165,26 +156,19 @@ void * dequeue_ev_mpiqueue(ev_piqueue_type  pq_ptr)
 		/*
 		*/
 		if (-1 == basic_try_dequeue(pq_ptr->gl_array[index],&return_data)) {
-			//atomic_fetch_add_explicit(&miss_count,1,memory_order_relaxed);
 			EV_YIELD();
-			i = 0;
 		}
 		else {
-			/*
-		return_data = dequeue(pq_ptr->gl_array[index]);
-		*/
-			//atomic_fetch_add_explicit(&hit_count,1,memory_order_relaxed);
 			if (return_data) {
-				atomic_fetch_add_explicit(&succ_count,-1,memory_order_relaxed);
 				break;
 			}
 			else {
 				/* try_dequeue returned 0 and queue is empty,
 				 * go on to the next queue. */
-				i++;
 			}
+			i++;
 		}
-			/*
+		/*
 		*/
 		//d_count = atomic_fetch_add_explicit(&(pq_ptr->deq_counter),1,memory_order_relaxed);
 		++index;
@@ -202,32 +186,13 @@ void enqueue_ev_mpiqueue(ev_piqueue_type pq_ptr,void * data)
 
 	if(!pq_ptr) EV_ABORT("");
 
-	/* Signal the presence of another element in the queue. */
-	//atomic_fetch_add_explicit(&(pq_ptr->ub_count),1,memory_order_relaxed);
-	/* Enq_counter indiacates, where the current insert should take place
-	 * after the next one should go to the next list. */
-	/* Here in below e_count will have the present value.
-	 * Next time this line is executed, e_count will get the incremented value, while
-	 * the memory location will be incremented. */
-	//e_count = atomic_fetch_add_explicit(&(pq_ptr->enq_counter),1,memory_order_relaxed);
-	//index = e_count % pq_ptr->N;
-	/* incr lb_count to permit another dequeue. */
-	//atomic_fetch_add_explicit(&(pq_ptr->lb_count),1,memory_order_relaxed);
-
-	/* Enqueue the element on the speicified list, making sure that
-	 * previous enqueue on this list has completed the critical section. */
-	//FIFO_enter(&(pq_ptr->gl_array[index].e_guard),e_count,pq_ptr->N);
-	//FIFO_exit(&(pq_ptr->gl_array[index].e_guard),e_count);
-
-
 	while (1) {
-		if (!basic_enqueue(pq_ptr->gl_array[st_index],data)) break;
-		st_index++;
 		st_index = st_index % pq_ptr->N;
+		if (0 == basic_enqueue(pq_ptr->gl_array[st_index],data)) break;
+		st_index++;
 		EV_YIELD();
 	}
 	//EV_DBG(__FILE__,__LINE__);
-	atomic_fetch_add_explicit(&succ_count,1,memory_order_relaxed);
 
 	return ;
 }
