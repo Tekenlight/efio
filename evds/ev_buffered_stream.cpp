@@ -103,12 +103,12 @@ int ev_buffered_stream::sync()
 }
 
 
-void ev_buffered_stream::setMode(openmode mode)
+void ev_buffered_stream::set_mode(openmode mode)
 {
 	_mode = mode;
 }
 
-ev_buffered_stream::openmode ev_buffered_stream::getMode() const
+ev_buffered_stream::openmode ev_buffered_stream::get_mode() const
 {
 	return _mode;
 }

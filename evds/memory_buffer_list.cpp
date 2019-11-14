@@ -57,7 +57,7 @@ void memory_buffer_list::node::shift_buffer_position(size_t bytes)
 
 memory_buffer_list::node::~node()
 {
-	//printf("In node destructor\n");
+	//printf("[%p:%s%d] In node destructor\n", pthread_self(), __FILE__, __LINE__);
 	free(_buffer);
 	_buffer = 0;
 	_size = 0;
@@ -76,10 +76,28 @@ memory_buffer_list::node * memory_buffer_list::get_head()
 	node * tail = (node*)std::atomic_load(&_tail);
 	/* If tail is NULL, queue is empty. */
 	if (tail) {
+		int st_count = 0;
 		/* It is possible for head to become NULL temporarily
 		 * when tail queue is not empty. */
 		head = (node*)std::atomic_load(&_head);
-		while (!head) { EV_YIELD(); head = (node*)std::atomic_load(&_head); }
+		st_count = 0;
+		while (!head) {
+			//st_count++;
+			/*
+			if (st_count > 1000) {
+				printf("%p:%s:%d Could not get head after 1000 attempts\n", pthread_self(), __FILE__, __LINE__);
+				abort();
+			}
+			*/
+			EV_YIELD();
+			head = (node*)std::atomic_load(&_head);
+			tail = (node*)std::atomic_load(&_tail);
+			if (!tail) {
+				//printf("%p:%s:%d How did tail become null?\n", pthread_self(), __FILE__, __LINE__);
+				head = 0;
+				break;
+			}
+		}
 	}
 	else head = 0;
 	return head;
@@ -179,10 +197,11 @@ memory_buffer_list::node * memory_buffer_list::pop_head()
 
 memory_buffer_list::~memory_buffer_list()
 {
-	//printf("in memory_buffer_list destructor\n");
+	//printf("[%p:%s%d] in memory_buffer_list destructor\n", pthread_self(), __FILE__, __LINE__);
 	node * p = 0, *q = 0;
 	p = (node*)std::atomic_load(&_head);
 	while (p != 0) {
+		//printf("[%p:%s%d] in loop\n", pthread_self(), __FILE__, __LINE__);
 		q = p->get_next();
 		delete p;
 		p = q;

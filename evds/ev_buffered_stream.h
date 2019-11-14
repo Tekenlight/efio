@@ -51,11 +51,11 @@ public:
 
 	virtual int sync();
 
-	void setMode(openmode mode);
+	void set_mode(openmode mode);
 
 	size_t push_to_sync(char *buffer, std::streamsize bytes);
 
-	openmode getMode() const;
+	openmode get_mode() const;
 	virtual void get_prefix(char* buffer, std::streamsize bytes, char *prefix, size_t bytes_ptr);
 	virtual void get_suffix(char* buffer, std::streamsize bytes, char *suffix, size_t bytes_ptr);
 	void set_prefix_len(size_t bytes);
