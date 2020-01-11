@@ -59,6 +59,8 @@ message(STATUS "HI ${CMAKE_HOST_SYSTEM_NAME}")
 if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
 	string(APPEND CMAKE_C_FLAGS "-D_GNU_SOURCE -Wno-format-zero-length -DEV_DEBUG")
 	string(APPEND CMAKE_EXE_LINKER_FLAGS "-pthread")
+else (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+	string(APPEND CMAKE_C_FLAGS "-DEV_DEBUG")
 endif()
 
 include(PocoMacros)

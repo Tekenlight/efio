@@ -10,8 +10,8 @@
 #include <ev_queue.h>
 
 struct task_s {
-	task_func_type _task_function;
-	task_argument_type * _arg;
+	task_func_type		_task_function;
+	task_argument_type	_arg;
 	int					_shutdown;
 };
 
@@ -109,8 +109,11 @@ static void * thread_loop(void *data)
 		atomic_thread_fence(memory_order_acq_rel);
 		pool->_threads[thr_index]._state = THREAD_BUSY;
 		if (!(qe->_task_function)) EV_ABORT("Task function cannot be null. ");
+		//EV_DBGP("Here\n");
 		(*(qe->_task_function))(qe->_arg);
+		//EV_DBGP("Here\n");
 		free(qe);
+		//EV_DBGP("Here\n");
 		atomic_fetch_add(&(pool->_threads[thr_index]._task_count),1);
 		pool->_threads[thr_index]._state = THREAD_FREE;
 	}
@@ -192,6 +195,55 @@ static void free_thread_pool(struct thread_pool_s *pool)
 	destroy_ev_queue(pool->_free_thr_queue);
 
 	return;
+}
+
+typedef struct {
+	void*						_task_input;
+	void*						_ref_data;
+	task_func_with_return_t		_task_func;
+	notify_task_completion_t	_on_complete;
+} generic_task_data_t, * generic_task_data_ptr_t;
+
+static void execute_function(void* task_data)
+{
+	/*
+		EV_DBGP("Here tdp = %p\n", task_data);
+		EV_DBGP("Here func = %p inp = %p %s\n", tdp->_task_func, tdp->_task_input, (char*)tdp->_task_input);
+		EV_DBGP("Here\n");
+		EV_DBGP("Here\n");
+		EV_DBGP("Here\n");
+	*/
+	generic_task_data_ptr_t tdp = (generic_task_data_ptr_t)(task_data);
+	void * return_data = tdp->_task_func(tdp->_task_input);
+	tdp->_on_complete(return_data, tdp->_ref_data);
+	free(tdp);
+	return;
+}
+
+void enqueue_task_function (struct thread_pool_s *pool, task_func_with_return_t func,
+			task_argument_type input_data, void * ref_data, notify_task_completion_t notification_func)
+{
+	/*
+	EV_DBGP("Here func = %p notification_func = %p inp = %p %s\n", tdp->_task_func, tdp->_on_complete, tdp->_task_input, (char*)tdp->_task_input);
+	EV_DBGP("Here tdp = %p\n", tdp);
+	EV_DBGP("Here qe = %p, qe->_arg=tdp = %p\n", qe, qe->_arg);
+	EV_DBGP("Here\n");
+	*/
+	struct task_s * qe = NULL;
+
+	generic_task_data_ptr_t tdp = malloc(sizeof(generic_task_data_t));
+	tdp->_task_input = input_data;
+	tdp->_ref_data = ref_data;
+	tdp->_task_func = func;
+	tdp->_on_complete = notification_func;
+
+	qe = malloc(sizeof(struct task_s));
+	qe->_task_function = execute_function;
+	qe->_arg = tdp;
+	enqueue(pool->_task_queue,qe);
+
+	atomic_fetch_add(&pool->_cond_count,1);
+	wake_any_one_thread(pool);
 }
 
 void enqueue_task(struct thread_pool_s *pool, task_func_type func,
