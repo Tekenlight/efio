@@ -7,6 +7,14 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <thread_pool.h>
+
+#define FILE_OPER_OPEN 0
+#define FILE_OPER_READ 1
+#define FILE_OPER_CLOSE 2
+#define FILE_OPER_READAHEAD 3
+#define FILE_OPER_WRITE 4
+
 __BEGIN_DECLS
 
 /*
@@ -90,6 +98,7 @@ void ef_init();
  * The module is expected to be a singleton for the entire process.
  */
 
+void ef_unset_cb_func();
 void ef_set_cb_func(ef_notification_f_type cb_func, void * cb_data);
 /*
  * The caller can set a function to be called back whenever any of the asynchrronous activites
@@ -183,6 +192,18 @@ ssize_t ef_read(int fd, void * buf, size_t nbyte);
  * < 0 if there is any error, the global variable errno is set.
  */
 
+ssize_t ef_file_ready_for_read(int fd);
+/*
+ * Checks the status of the file for read operation.
+ * Following are the return values.
+ *
+ * 0 : EOF has been reached
+ * -1: Status to be determined based on errno
+ *  	EAGAIN    : Read action has been triggered and is still in progress
+ *  	any other : fd in an erroneous state and read cannot happen.
+ * 1 : Data Available for read in the file buffer, and read action will succeed
+ */
+
 ssize_t ef_write(int fd, void *buf, size_t nbyte);
 /*
  * Write attempts to transfer nbyte data to the internal write buffer of the IO module.
@@ -242,5 +263,16 @@ int ef_close_status(int fd);
  * errno = EINVAL : Close opertaion is not initiated.
  *
  */
+
+void ef_set_thrpool(thread_pool_type thr_pool);
+/*
+ * The function sets the thread pool to be used for asynchronous activities of file management.
+ *
+ * This function takes 1 parameter, thread_pool_type , the handle to a thread pool.
+ * The thread pool pointed by thread_pool_type, should be initialized and be ready
+ * to take events for execution.
+ *
+ * The module is expected to be a singleton for the entire process. */
+
 __END_DECLS
 #endif

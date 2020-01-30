@@ -109,7 +109,9 @@ static void * thread_loop(void *data)
 		atomic_thread_fence(memory_order_acq_rel);
 		pool->_threads[thr_index]._state = THREAD_BUSY;
 		if (!(qe->_task_function)) EV_ABORT("Task function cannot be null. ");
-		//EV_DBGP("Here\n");
+		//EV_DBGP("Here qe=%p\n", qe);
+		//EV_DBGP("Here tf=%p\n", qe->_task_function);
+		//EV_DBGP("Here arg=%p\n", qe->_arg);
 		(*(qe->_task_function))(qe->_arg);
 		//EV_DBGP("Here\n");
 		free(qe);
@@ -208,7 +210,7 @@ static void execute_function(void* task_data)
 {
 	/*
 		EV_DBGP("Here tdp = %p\n", task_data);
-		EV_DBGP("Here func = %p inp = %p %s\n", tdp->_task_func, tdp->_task_input, (char*)tdp->_task_input);
+		EV_DBGP("Here func = %p inp = %p \n", tdp->_task_func, tdp->_task_input );
 		EV_DBGP("Here\n");
 		EV_DBGP("Here\n");
 		EV_DBGP("Here\n");
@@ -223,20 +225,20 @@ static void execute_function(void* task_data)
 void enqueue_task_function (struct thread_pool_s *pool, task_func_with_return_t func,
 			task_argument_type input_data, void * ref_data, notify_task_completion_t notification_func)
 {
+
 	/*
-	EV_DBGP("Here func = %p notification_func = %p inp = %p %s\n", tdp->_task_func, tdp->_on_complete, tdp->_task_input, (char*)tdp->_task_input);
 	EV_DBGP("Here tdp = %p\n", tdp);
+	EV_DBGP("Here func = %p notification_func = %p inp = %p \n", tdp->_task_func, tdp->_on_complete, tdp->_task_input);
 	EV_DBGP("Here qe = %p, qe->_arg=tdp = %p\n", qe, qe->_arg);
 	EV_DBGP("Here\n");
 	*/
-	struct task_s * qe = NULL;
-
 	generic_task_data_ptr_t tdp = malloc(sizeof(generic_task_data_t));
 	tdp->_task_input = input_data;
 	tdp->_ref_data = ref_data;
 	tdp->_task_func = func;
 	tdp->_on_complete = notification_func;
 
+	struct task_s * qe = NULL;
 	qe = malloc(sizeof(struct task_s));
 	qe->_task_function = execute_function;
 	qe->_arg = tdp;

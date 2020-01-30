@@ -67,6 +67,7 @@ static pthread_t sg_file_writer_tid;
 static ef_notification_f_type sg_cb_func = NULL;
 static void * sg_cb_data = NULL;
 static int sg_ef_init_done = 0;
+static int sg_thr_pool_init_done = 0;
 static void file_writer(void * data);
 static void slow_sync(void * data);
 static void alloc_file_action(EF_FILE * file_ptr, file_oper_type oper);
@@ -162,7 +163,11 @@ static void ef_file_open(void * data)
 	file_ptr->_action->_err = errno;
 	file_ptr->_action->_action_status = ACTION_COMPLETE;
 	file_ptr->_status = (file_ptr->_fd == -1)?FILE_NOT_OPEN:FILE_OPEN;
-	if (sg_cb_func) sg_cb_func(file_ptr->_ef_fd, oper_open, sg_cb_data);
+	atomic_thread_fence(memory_order_acq_rel);
+	void* cb_data = sg_cb_data;
+	atomic_thread_fence(memory_order_acq_rel);
+	ef_notification_f_type cb_func = sg_cb_func;
+	if (cb_func) cb_func(file_ptr->_ef_fd, oper_open, cb_data);
 	return ;
 }
 
@@ -200,8 +205,12 @@ static void ef_file_close(void * data)
 	file_ptr->_action->_err = errno;
 	file_ptr->_status = FILE_NOT_OPEN;
 	file_ptr->_action->_action_status = ACTION_COMPLETE;
-	if (sg_cb_func) sg_cb_func(file_ptr->_ef_fd, oper_close, sg_cb_data);
-	/* Clean up the action, file data etc. as soon as the file is close.
+	atomic_thread_fence(memory_order_acq_rel);
+	void* cb_data = sg_cb_data;
+	atomic_thread_fence(memory_order_acq_rel);
+	ef_notification_f_type cb_func = sg_cb_func;
+	if (cb_func) cb_func(file_ptr->_ef_fd, oper_close, cb_data);
+	/* Clean up the action, file data etc. as soon as the file is closed.
 	 * Return data handling not required. */
 	ef_close_status(file_ptr->_ef_fd);
 
@@ -317,7 +326,11 @@ static void ef_file_read_ahead(void *data)
 	}
 
 	file_ptr->_action->_action_status = ACTION_COMPLETE;
-	if (sg_cb_func && (file_ptr->_buf._buffer == NULL)) sg_cb_func(file_ptr->_ef_fd, oper_read, sg_cb_data);
+	atomic_thread_fence(memory_order_acq_rel);
+	void* cb_data = sg_cb_data;
+	atomic_thread_fence(memory_order_acq_rel);
+	ef_notification_f_type cb_func = sg_cb_func;
+	if (cb_func && (file_ptr->_buf._buffer == NULL)) cb_func(file_ptr->_ef_fd, oper_read, cb_data);
 
 	return;
 }
@@ -353,7 +366,11 @@ static void ef_file_read(void *data)
 	file_ptr->_action->_return_value = ret;
 	file_ptr->_action->_err = errno;
 	file_ptr->_action->_action_status = ACTION_COMPLETE;
-	if (sg_cb_func && buf_was_empty) sg_cb_func(file_ptr->_ef_fd, oper_read, sg_cb_data);
+	atomic_thread_fence(memory_order_acq_rel);
+	void* cb_data = sg_cb_data;
+	atomic_thread_fence(memory_order_acq_rel);
+	ef_notification_f_type cb_func = sg_cb_func;
+	if (cb_func && buf_was_empty) cb_func(file_ptr->_ef_fd, oper_read, cb_data);
 
 	return;
 }
@@ -413,7 +430,7 @@ static int ef_process_readahead_action_status(EF_FILE *file_ptr)
 		if (file_ptr->_action->_action_status == ACTION_COMPLETE) {
 			free_file_action(file_ptr);
 			file_ptr->_buf._r_a_completed++;
-			return 0;
+			return 1;
 		}
 		else {
 			errno = EAGAIN;
@@ -421,7 +438,11 @@ static int ef_process_readahead_action_status(EF_FILE *file_ptr)
 		}
 	}
 
-	return 0;
+	/* Cannot call this function either when there is no initiated action
+	 * or if the initiated action is not oper_readahead.
+	 * */
+	errno = EINVAL;
+	return -1;
 }
 
 static void ef_fire_file_read(EF_FILE * file_ptr)
@@ -473,6 +494,7 @@ static int ef_process_read_action_status(EF_FILE *file_ptr)
 			}
 			else {
 				if (file_ptr->_action->_return_value == 0) {
+					// EOF has been reached.
 					free_file_action(file_ptr);
 					atomic_thread_fence(memory_order_release);
 					return 0;
@@ -495,6 +517,39 @@ static int ef_process_read_action_status(EF_FILE *file_ptr)
 	}
 
 	return 0;
+}
+
+static ssize_t chk_fd_read_conditions(int fd)
+{
+	errno = 0;
+	int flg = 0;
+	if (!sg_ef_init_done) {
+		errno = EBADF;
+		EV_ABORT("INIT NOT DONE");
+	}
+	if (!sg_open_files[fd]) {
+		errno = EINVAL;
+		return -1;
+	}
+	if (sg_open_files[fd]->_status != FILE_OPEN) {
+		errno = EBADF;
+		return -1;
+	}
+	if (sg_open_files[fd]->_file_offset >= sg_open_files[fd]->_curr_file_size_on_disk) {
+		/* End of file has been reached. */
+		return 0;
+	}
+	flg = sg_open_files[fd]->_oflag;
+#ifdef __linux__
+	if (flg & O_DIRECT) flg ^= O_DIRECT;
+#endif
+	if (!(flg&(O_RDWR)) && (flg != O_RDONLY)) {
+		/* File opened without read access. */
+		errno = EBADF;
+		return -1;
+	}
+
+	return 1;
 }
 
 ssize_t chk_read_conditions(int fd, void * buf, size_t nbyte)
@@ -535,6 +590,77 @@ ssize_t chk_read_conditions(int fd, void * buf, size_t nbyte)
 	return 1;
 }
 
+/*
+ * Checks the status of the file for read operation.
+ * Following are the return values.
+ *
+ * 0 : EOF has been reached
+ * -1: Status to be determined based on errno
+ *  	EAGAIN    : Read action has been triggered and is still in progress
+ *  	any other : fd in an erroneous state and read cannot happen.
+ * 1 : Data Available for read in the file buffer, and read action will succeed
+ */
+ssize_t ef_file_ready_for_read(int fd)
+{
+	ssize_t		ret = -1;
+	off_t		page_offset = 0;
+	EF_FILE		*file_ptr = NULL;
+
+	/* EOF could have been reached by the read initiated just before this.
+	 * Hence cannot return as error condition.
+	 * */
+	if ((ret = chk_fd_read_conditions(fd)) < 0) {
+		return ret;
+	}
+
+	ret = -1;
+	file_ptr = sg_open_files[fd];
+	page_offset = file_ptr->_file_offset - (file_ptr->_buf._buffer_index * sg_page_size);
+
+	if (file_ptr->_action) {
+		if (file_ptr->_action->_cmd == oper_readahead) {
+			ret = ef_process_readahead_action_status(file_ptr);
+			if (ret < 0) return ret;
+		}
+		else if (file_ptr->_action->_cmd == oper_read) {
+			ret = ef_process_read_action_status(file_ptr);
+			if (ret <= 0) return ret;
+		}
+		else if (file_ptr->_action->_cmd == oper_write) {
+			//low_ef_sync(file_ptr);
+			sync_file_writes(fd);
+			SET_WRITE_ACTION_STATUS(file_ptr->_action);
+			if (file_ptr->_action->_action_status != ACTION_COMPLETE) {
+				errno = EBUSY;
+				ret = -1;
+				return ret;
+			}
+		}
+		else {
+			if (file_ptr->_action->_action_status != ACTION_COMPLETE) {
+				errno = EBUSY;
+				ret = -1;
+				return ret;
+			}
+		}
+	}
+	else {
+		/*
+		 * If no action (therefore no read action) has been triggered
+		 * and if the read buffer is null,
+		 * file is not read ready.
+		 * */
+		if (file_ptr->_buf._buffer == NULL) {
+			errno = EINVAL;
+			ret = -1;
+			return ret;
+		}
+	}
+
+
+	return ret;
+}
+
 static ssize_t low_ef_read(int fd, void * buf, size_t nbyte)
 {
 	ssize_t		ret = 0;
@@ -567,14 +693,14 @@ static ssize_t low_ef_read(int fd, void * buf, size_t nbyte)
 			sync_file_writes(fd);
 			SET_WRITE_ACTION_STATUS(file_ptr->_action);
 			if (file_ptr->_action->_action_status != ACTION_COMPLETE) {
-				errno = EAGAIN;
+				errno = EBUSY;
 				ret = -1;
 				return ret;
 			}
 		}
 		else {
 			if (file_ptr->_action->_action_status != ACTION_COMPLETE) {
-				errno = EAGAIN;
+				errno = EBUSY;
 				ret = -1;
 				return ret;
 			}
@@ -585,6 +711,7 @@ static ssize_t low_ef_read(int fd, void * buf, size_t nbyte)
 		/* Unchecked _action status is lying from the previous action. */
 		free_file_action(file_ptr);
 	}
+	ret = 0;
 
 	if (file_ptr->_buf._buffer == NULL) {
 		/* Fire a fresh read. */
@@ -1409,6 +1536,7 @@ int ef_open_status(int fd)
 				}
 				enqueue(sg_fd_queue,(void*)(long)fd);
 
+				errno = EBADF;
 				return -1;
 			}
 			else if (sg_open_files[fd]->_action->_return_value == -100) {
@@ -1517,7 +1645,7 @@ void ef_init()
 	 * 2 threads for carrying out asynchrnous, read, open and close
 	 * operations.
 	 */
-	sg_disk_io_thr_pool = create_thread_pool(2);
+	if (!sg_disk_io_thr_pool) sg_disk_io_thr_pool = create_thread_pool(2);
 	sg_file_writer_pool = create_thread_pool(1);
 	sg_slow_sync_pool = create_thread_pool(1);
 	enqueue_task(sg_file_writer_pool,file_writer,NULL);
@@ -1538,10 +1666,28 @@ void ef_init()
 	return;
 }
 
+void ef_set_thrpool(thread_pool_type thr_pool)
+{
+	if (sg_thr_pool_init_done) return;
+	sg_thr_pool_init_done = 1;
+	if (sg_disk_io_thr_pool) destroy_thread_pool(sg_disk_io_thr_pool);
+	sg_disk_io_thr_pool = thr_pool;
+
+	return;
+}
+
 void ef_set_cb_func(ef_notification_f_type cb_func, void * cb_data)
 {
 	sg_cb_func = cb_func;
 	sg_cb_data = cb_data;
+}
+
+void ef_unset_cb_func()
+{
+	sg_cb_func = NULL;
+	atomic_thread_fence(memory_order_acq_rel);
+	sg_cb_data = NULL;
+	atomic_thread_fence(memory_order_acq_rel);
 }
 
 ssize_t ef_write(int fd, void * buf, size_t nbyte)
