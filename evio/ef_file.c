@@ -76,11 +76,43 @@ static void low_ef_sync(EF_FILE * file_ptr);
 static void sync_buf_to_file(EF_FILE *file_ptr);
 static void sync_file_writes(int fd);
 
+struct _fd_s {
+	int fd;
+};
+
+static void st_enqueue_sg_fd_queue(int fd)
+{
+	//EV_DBGP("Here\n");
+	struct _fd_s* ptr = malloc(sizeof(struct _fd_s));
+	ptr->fd = fd;
+	enqueue(sg_fd_queue,ptr);
+
+	return;
+}
+
+static int st_dequeue_sg_fd_queue()
+{
+	void * p = dequeue(sg_fd_queue);
+	if (p == NULL) return -1;
+	int fd = ((struct _fd_s*)p)->fd;
+	free(p);
+	return fd;
+}
+
 static void setup_fd_slots()
 {
+	//EV_DBGP("Here\n");
+	for (int i = 0 ; i < EF_MAX_FILES ; i++) {
+		st_enqueue_sg_fd_queue(i);
+	}
+	/*
 	for (int i = 0 ; i < EF_MAX_FILES ; i++) {
 		enqueue(sg_fd_queue,(void*)(long)i);
 	}
+	for (int i = 1 ; i < (EF_MAX_FILES+1) ; i++) {
+		enqueue(sg_fd_queue,(void*)(long)i);
+	}
+	*/
 	return ;
 }
 
@@ -356,7 +388,7 @@ static void ef_file_read(void *data)
 		buf_was_empty = 1;
 		{
 			if (posix_memalign(&(file_ptr->_buf._buffer),sg_page_size,sg_page_size))
-				EV_ABORT("Cannot allocate memory");
+				EV_ABORT("Cannot allocate memory [%d] [%s]", errno, strerror(errno));
 		}
 	}
 	//memset(file_ptr->_buf._buffer,0,sg_page_size);
@@ -504,7 +536,15 @@ static int ef_process_read_action_status(EF_FILE *file_ptr)
 					ret = file_ptr->_action->_return_value;
 					free_file_action(file_ptr);
 					atomic_thread_fence(memory_order_release);
-					ef_fire_file_read_ahead(file_ptr);
+					/*
+					 * Commented out read ahead feature.
+					 * Since it was not working correctly under test conditions
+					 * on 31-Jan-2020.
+					 *
+					 * This feature when enabled, is interefering with results of prior read.
+					 * It requires to be redesigned and fixed.
+					 * */
+					 // ef_fire_file_read_ahead(file_ptr);
 					return ret;
 				}
 			}
@@ -590,6 +630,72 @@ ssize_t chk_read_conditions(int fd, void * buf, size_t nbyte)
 	return 1;
 }
 
+static int ef_analyse_readahead_action_status(EF_FILE *file_ptr)
+{
+	if (file_ptr->_action && file_ptr->_action->_cmd == oper_readahead) {
+		if (file_ptr->_action->_action_status == ACTION_COMPLETE) {
+			EV_DBGP("Here ret = %d\n", 1);
+			return 1;
+		}
+		else {
+			EV_DBGP("Here ret = %d\n", -1);
+			errno = EAGAIN;
+			return -1;
+		}
+	}
+
+	/* Cannot call this function either when there is no initiated action
+	 * or if the initiated action is not oper_readahead.
+	 * */
+	errno = EINVAL;
+	EV_DBGP("Here ret = %d\n", -1);
+	return -1;
+}
+
+static int ef_analyse_read_action_status(EF_FILE *file_ptr)
+{
+	int ret = 0;
+	atomic_thread_fence(memory_order_acquire);
+
+	if (file_ptr->_action && file_ptr->_action->_cmd == oper_read) {
+		errno = 0;
+		if (file_ptr->_action->_action_status == ACTION_COMPLETE) {
+			if (file_ptr->_action->_return_value == -1) {
+				errno = file_ptr->_action->_err;
+				EV_DBGP("Here ret = %d\n", -1);
+				return -1;
+			}
+			else if (file_ptr->_action->_return_value == -100) {
+				errno = EAGAIN;
+				EV_DBGP("Here ret = %d\n", -1);
+				return -1;
+			}
+			else {
+				if (file_ptr->_action->_return_value == 0) {
+					// EOF has been reached.
+					EV_DBGP("Here ret = %d\n", 0);
+					return 0;
+				}
+				else {
+					// Read has happened successfully
+					ret = file_ptr->_action->_return_value;
+					EV_DBGP("Here ret = %d\n", ret);
+					return ret;
+				}
+			}
+		}
+		else {
+			/* We dont know the status yet. */
+			errno = EAGAIN;
+			EV_DBGP("Here ret = %d\n", -1);
+			return -1;
+		}
+	}
+
+	EV_DBGP("Here ret = %d\n", 0);
+	return 0;
+}
+
 /*
  * Checks the status of the file for read operation.
  * Following are the return values.
@@ -619,29 +725,19 @@ ssize_t ef_file_ready_for_read(int fd)
 
 	if (file_ptr->_action) {
 		if (file_ptr->_action->_cmd == oper_readahead) {
-			ret = ef_process_readahead_action_status(file_ptr);
+			ret = ef_analyse_readahead_action_status(file_ptr);
+			EV_DBGP("Here ret = %zd\n", ret);
 			if (ret < 0) return ret;
 		}
 		else if (file_ptr->_action->_cmd == oper_read) {
-			ret = ef_process_read_action_status(file_ptr);
+			ret = ef_analyse_read_action_status(file_ptr);
+			EV_DBGP("Here ret = %zd\n", ret);
 			if (ret <= 0) return ret;
 		}
-		else if (file_ptr->_action->_cmd == oper_write) {
-			//low_ef_sync(file_ptr);
-			sync_file_writes(fd);
-			SET_WRITE_ACTION_STATUS(file_ptr->_action);
-			if (file_ptr->_action->_action_status != ACTION_COMPLETE) {
-				errno = EBUSY;
-				ret = -1;
-				return ret;
-			}
-		}
 		else {
-			if (file_ptr->_action->_action_status != ACTION_COMPLETE) {
-				errno = EBUSY;
-				ret = -1;
-				return ret;
-			}
+			errno = EBUSY;
+			ret = -1;
+			return ret;
 		}
 	}
 	else {
@@ -650,13 +746,9 @@ ssize_t ef_file_ready_for_read(int fd)
 		 * and if the read buffer is null,
 		 * file is not read ready.
 		 * */
-		if (file_ptr->_buf._buffer == NULL) {
-			errno = EINVAL;
-			ret = -1;
-			return ret;
-		}
+		errno = EINVAL;
+		ret = -1;
 	}
-
 
 	return ret;
 }
@@ -777,7 +869,7 @@ static ssize_t low_ef_read(int fd, void * buf, size_t nbyte)
 			file_ptr->_file_offset += transfer_size;
 			ret = transfer_size;
 			if (page_offset == sg_page_size) {
-				/* Fire a fresh read. */
+				/* Enable firing a fresh read. */
 				page_offset = 0;
 				file_ptr->_buf._buffer_index++;
 				free(file_ptr->_buf._buffer);
@@ -1461,7 +1553,8 @@ int ef_open(const char * path, int oflag, ...)
 		return -1;
 	}
 
-	fd = (int)(long)dequeue(sg_fd_queue);
+	fd = st_dequeue_sg_fd_queue();
+	//fd = (int)(long)dequeue(sg_fd_queue);
 	if (-1 == fd) {
 		/* Too many open files */
 		errno = EMFILE;
@@ -1534,9 +1627,10 @@ int ef_open_status(int fd)
 					int htfa = 1;
 					atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,0);
 				}
-				enqueue(sg_fd_queue,(void*)(long)fd);
+				st_enqueue_sg_fd_queue(fd);
+				//enqueue(sg_fd_queue,(void*)(long)fd);
 
-				errno = EBADF;
+				//errno = EBADF;
 				return -1;
 			}
 			else if (sg_open_files[fd]->_action->_return_value == -100) {
@@ -1546,7 +1640,8 @@ int ef_open_status(int fd)
 			else {
 				free_file_action(sg_open_files[fd]);
 				atomic_thread_fence(memory_order_release);
-				return sg_open_files[fd]->_fd;
+				//return sg_open_files[fd]->_fd;
+				return fd;
 			}
 		}
 		else {
@@ -1556,7 +1651,8 @@ int ef_open_status(int fd)
 	}
 	else {
 		if (sg_open_files[fd]->_status == FILE_OPEN) {
-			return sg_open_files[fd]->_fd;
+			//return sg_open_files[fd]->_fd;
+			return fd;
 		}
 		else {
 			errno = EBADF;
@@ -1597,7 +1693,8 @@ int ef_close_status(int fd)
 					int htfa = 1;
 					atomic_compare_exchange_strong(&(sg_handle_to_file_action[fd]),&htfa,0);
 				}
-				enqueue(sg_fd_queue,(void*)(long)fd);
+				st_enqueue_sg_fd_queue(fd);
+				//enqueue(sg_fd_queue,(void*)(long)fd);
 				return 0;
 			}
 		}
@@ -1634,10 +1731,19 @@ void ef_init()
 	ev_init_globals();
 
 	sg_page_size = (size_t)get_sys_pagesize();
-	//sg_page_size = 16 * 256 * sg_page_size;
+
+	/*
+	 * Page size has to be aligned to powers of 2 and a minimum of the 
+	 * block size given in the format of the disk.
+	 *
+	 * This is necessary because, we are doing direct IO and LINUX
+	 * platform needs the alignment  for unbuffered IO to work.
+	 * 
+	 * The current value of 1 M (asuming a format size of 4K) is fixed
+	 * to provide for minimizing of IO operations.
+	 *
+	 * */
 	sg_page_size =  256 * sg_page_size;
-	//sg_page_size =  512 * sg_page_size;
-	//sg_page_size =  1024 * sg_page_size;
 
 	/* Start the thread pool needed to carryout the file operations
 	 * in an async manner.
