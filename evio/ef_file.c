@@ -634,11 +634,11 @@ static int ef_analyse_readahead_action_status(EF_FILE *file_ptr)
 {
 	if (file_ptr->_action && file_ptr->_action->_cmd == oper_readahead) {
 		if (file_ptr->_action->_action_status == ACTION_COMPLETE) {
-			EV_DBGP("Here ret = %d\n", 1);
+			//EV_DBGP("Here ret = %d\n", 1);
 			return 1;
 		}
 		else {
-			EV_DBGP("Here ret = %d\n", -1);
+			//EV_DBGP("Here ret = %d\n", -1);
 			errno = EAGAIN;
 			return -1;
 		}
@@ -648,7 +648,7 @@ static int ef_analyse_readahead_action_status(EF_FILE *file_ptr)
 	 * or if the initiated action is not oper_readahead.
 	 * */
 	errno = EINVAL;
-	EV_DBGP("Here ret = %d\n", -1);
+	//EV_DBGP("Here ret = %d\n", -1);
 	return -1;
 }
 
@@ -662,24 +662,24 @@ static int ef_analyse_read_action_status(EF_FILE *file_ptr)
 		if (file_ptr->_action->_action_status == ACTION_COMPLETE) {
 			if (file_ptr->_action->_return_value == -1) {
 				errno = file_ptr->_action->_err;
-				EV_DBGP("Here ret = %d\n", -1);
+				//EV_DBGP("Here ret = %d\n", -1);
 				return -1;
 			}
 			else if (file_ptr->_action->_return_value == -100) {
 				errno = EAGAIN;
-				EV_DBGP("Here ret = %d\n", -1);
+				//EV_DBGP("Here ret = %d\n", -1);
 				return -1;
 			}
 			else {
 				if (file_ptr->_action->_return_value == 0) {
 					// EOF has been reached.
-					EV_DBGP("Here ret = %d\n", 0);
+					//EV_DBGP("Here ret = %d\n", 0);
 					return 0;
 				}
 				else {
 					// Read has happened successfully
 					ret = file_ptr->_action->_return_value;
-					EV_DBGP("Here ret = %d\n", ret);
+					//EV_DBGP("Here ret = %d\n", ret);
 					return ret;
 				}
 			}
@@ -687,12 +687,12 @@ static int ef_analyse_read_action_status(EF_FILE *file_ptr)
 		else {
 			/* We dont know the status yet. */
 			errno = EAGAIN;
-			EV_DBGP("Here ret = %d\n", -1);
+			//EV_DBGP("Here ret = %d\n", -1);
 			return -1;
 		}
 	}
 
-	EV_DBGP("Here ret = %d\n", 0);
+	//EV_DBGP("Here ret = %d\n", 0);
 	return 0;
 }
 
@@ -726,12 +726,12 @@ ssize_t ef_file_ready_for_read(int fd)
 	if (file_ptr->_action) {
 		if (file_ptr->_action->_cmd == oper_readahead) {
 			ret = ef_analyse_readahead_action_status(file_ptr);
-			EV_DBGP("Here ret = %zd\n", ret);
+			//EV_DBGP("Here ret = %zd\n", ret);
 			if (ret < 0) return ret;
 		}
 		else if (file_ptr->_action->_cmd == oper_read) {
 			ret = ef_analyse_read_action_status(file_ptr);
-			EV_DBGP("Here ret = %zd\n", ret);
+			//EV_DBGP("Here ret = %zd\n", ret);
 			if (ret <= 0) return ret;
 		}
 		else {
