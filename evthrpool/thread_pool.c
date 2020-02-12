@@ -206,7 +206,7 @@ typedef struct {
 	notify_task_completion_t	_on_complete;
 } generic_task_data_t, * generic_task_data_ptr_t;
 
-static void execute_function(void* task_data)
+static void envelope_function(void* task_data)
 {
 	/*
 		EV_DBGP("Here tdp = %p\n", task_data);
@@ -238,14 +238,17 @@ void enqueue_task_function (struct thread_pool_s *pool, task_func_with_return_t 
 	tdp->_task_func = func;
 	tdp->_on_complete = notification_func;
 
+	/*
 	struct task_s * qe = NULL;
 	qe = malloc(sizeof(struct task_s));
-	qe->_task_function = execute_function;
+	qe->_task_function = envelope_function;
 	qe->_arg = tdp;
 	enqueue(pool->_task_queue,qe);
 
 	atomic_fetch_add(&pool->_cond_count,1);
 	wake_any_one_thread(pool);
+	*/
+	enqueue_task(pool, envelope_function, tdp);
 }
 
 void enqueue_task(struct thread_pool_s *pool, task_func_type func,
