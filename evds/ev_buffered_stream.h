@@ -3,6 +3,8 @@
 #include <iosfwd>
 #include <ios>
 
+#include <string.h>
+
 #ifndef EV_BUFFERED_stream
 #define EV_BUFFERED_stream
 template <typename ch>
