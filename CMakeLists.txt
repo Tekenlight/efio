@@ -112,6 +112,9 @@ endif()
 # evglobals
 add_subdirectory(evglobals)
 list(APPEND EF_COMPONENTS "evglobals")
+# core_utils
+add_subdirectory(core_utils)
+list(APPEND EF_COMPONENTS "core_utils")
 # evsync
 add_subdirectory(evsync)
 list(APPEND EF_COMPONENTS "evsync")
