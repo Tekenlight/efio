@@ -20,6 +20,17 @@ int noprintf(char * s, ...)
 	abort(); \
 }
 
+#include <execinfo.h>
+
+#ifdef STACK_TRACE
+#undef STACK_TRACE
+#endif
+#define STACK_TRACE() {\
+	void* callstack[128]; \
+	int i, frames = backtrace(callstack, 128); \
+	backtrace_symbols_fd(callstack, frames, 2); \
+}
+
 
 #ifdef EV_DEBUG
 

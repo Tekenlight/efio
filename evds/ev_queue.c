@@ -176,6 +176,7 @@ void * dequeue(struct ev_queue_s * q_ptr)
 
 	// List is empty if tail is null.
 	if (!q_ptr) {
+		STACK_TRACE();
 		printf("[%s:%d] Passed q_ptr is null\n",__FILE__,__LINE__);
 		abort();
 	}
