@@ -5,27 +5,30 @@
 
 void free_binary_data(unsigned char *data)
 {
-	unsigned char *address = data - sizeof(size_t);
+	//unsigned char *address = data - sizeof(size_t);
 	//printf("%s:%d, Freeing %p:%p, size[%lu]\n", __FILE__, __LINE__, (void*) address, (void*)data, sizeof(size_t));
-	free(address);
+	//free(address);
+	free(data);
 }
 
 size_t binary_data_len(unsigned char *data)
 {
-	size_t size;
-	memcpy(&size, (unsigned char *)data - sizeof(size_t), sizeof(size_t));
-	return size;
+	//size_t size;
+	//memcpy(&size, (unsigned char *)data - sizeof(size_t), sizeof(size_t));
+	//return size;
+	return -1;
 }
 
 void * alloc_binary_data_memory(size_t size)
 {
-	void* data = malloc(size + sizeof(size_t) + 1);
+	//void* data = malloc(size + sizeof(size_t) + 1);
+	void* data = malloc(size);
 
 	if (data == NULL) return NULL;
-	memset(data, 0, (size + sizeof(size_t) + 1));
+	memset(data, 0, size);
 
-	memcpy(data, &size, sizeof(size_t));
-	data = data + sizeof(size_t);
+	//memcpy(data, &size, sizeof(size_t));
+	//data = data + sizeof(size_t);
 
 	return data;
 }

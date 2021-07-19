@@ -1,12 +1,8 @@
 #include <stdatomic.h>
 #include <assert.h>
 #include <ev_rwlock.h>
+#include <ev_rwlock_struct.h>
 
-
-struct ev_rwlock_s {
-	atomic_int rd_lock;
-	atomic_int wr_lock;
-};
 
 ev_rwlock_type ev_rwlock_init()
 {
