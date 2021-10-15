@@ -79,7 +79,7 @@ static void * thread_loop(void *data)
 
 	pool->_threads[thr_index]._state = THREAD_FREE;
 	for (;;) {
-		s = atomic_load_explicit(&(pool->_shutdown),memory_order_relaxed);
+		s = atomic_load_explicit(&(pool->_shutdown),memory_order_acquire);
 		if (s) break;
 		qe = dequeue(pool->_task_queue);
 		if (!qe) {
@@ -99,7 +99,7 @@ static void * thread_loop(void *data)
 				if (qe) {
 					break;
 				}
-				s = atomic_load_explicit(&(pool->_shutdown),memory_order_relaxed);
+				s = atomic_load_explicit(&(pool->_shutdown),memory_order_acquire);
 				if ((sleeping_time + pool->_min_sleep_usec)<pool->_max_sleep_usec) i++;
 			}
 		}
@@ -273,7 +273,7 @@ int destroy_thread_pool(struct thread_pool_s *pool)
 		return -1;
 	}
 
-	s = atomic_load_explicit(&pool->_shutdown,memory_order_relaxed);
+	s = atomic_load_explicit(&pool->_shutdown,memory_order_acquire);
 	if (s > 0) {
 		errno = EBUSY;
 		return -1;
@@ -297,7 +297,7 @@ int thrpool_get_task_count(struct thread_pool_s *pool)
 {
 	int count = 0, i = 0;
 	for (i=0;i<pool->_num_threads;i++) {
-		count += atomic_load_explicit(&pool->_threads[i]._task_count,memory_order_relaxed);
+		count += atomic_load_explicit(&pool->_threads[i]._task_count,memory_order_acquire);
 	}
 	return count;
 }
