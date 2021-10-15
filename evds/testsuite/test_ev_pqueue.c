@@ -96,15 +96,15 @@ static void test_main(CuTest *tc)
 	q = create_ev_pqueue(4);
 
 	inp1.pq_ptr = q;
-	inp1.N = 4*1024*1024;
+	inp1.N = 64*1024*1024;
 	inp2.pq_ptr = q;
-	inp2.N = 4*1024*1024;
+	inp2.N = 64*1024*1024;
 	inp3.pq_ptr = q;
-	inp3.N = 4*1024*1024;
+	inp3.N = 64*1024*1024;
 	inp4.pq_ptr = q;
-	inp4.N = 4*1024*1024;
+	inp4.N = 64*1024*1024;
 	inp5.pq_ptr = q;
-	inp5.N = 4*1024*1024;
+	inp5.N = 64*1024*1024;
 
 	/*
 	pthread_create(&t0,NULL,thr_TEST,q);
