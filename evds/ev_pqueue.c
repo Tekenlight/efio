@@ -57,41 +57,69 @@ static void init_ev_pqueue_s(struct ev_pqueue_s * pq_ptr, int N)
 {
 	int prev_guard = 0;
 	pq_ptr->gl_array = malloc(N * sizeof(struct ev_pqueue_gl_s));
-	pq_ptr->enq_counter = 0;
-	pq_ptr->deq_counter = 0;
-	pq_ptr->ub_count = 0;
+	atomic_init(&pq_ptr->enq_counter, 0);
+	//pq_ptr->enq_counter = 0;
+	atomic_init(&pq_ptr->deq_counter, 0);
+	//pq_ptr->deq_counter = 0;
+	atomic_init(&pq_ptr->ub_count, 0);
+	//pq_ptr->ub_count = 0;
+	atomic_init(&pq_ptr->lb_count, 0);
 	pq_ptr->lb_count = 0;
 
 	for (int i = 0; i < N; i++) {
-		pq_ptr->gl_array[i].list.head = 0;
-		pq_ptr->gl_array[i].list.tail = 0;
+		atomic_init(&pq_ptr->gl_array[i].list.head , 0);
+		atomic_init(&pq_ptr->gl_array[i].list.tail , 0);
 		prev_guard = i - N;
-		pq_ptr->gl_array[i].e_guard = prev_guard;
-		pq_ptr->gl_array[i].d_guard = prev_guard;
+		atomic_init(&pq_ptr->gl_array[i].e_guard , prev_guard);
+		atomic_init(&pq_ptr->gl_array[i].d_guard , prev_guard);
 	}
 	pq_ptr->N = N;
+}
+
+static void dequeue_FIFO_exit(atomic_int * guard, int counter)
+{
+	atomic_store_explicit(guard,counter,memory_order_release);
+}
+
+static void dequeue_FIFO_enter(atomic_int * guard, int counter, int N)
+{
+	int lcount = counter  - N;
+	int i = 0;
+	atomic_thread_fence(memory_order_acquire);
+	while (lcount != atomic_load_explicit(guard,memory_order_acquire)) {
+		EV_YIELD();
+		atomic_thread_fence(memory_order_acquire);
+		/*
+		if (i > 100 && i < 105)
+			printf("%s:%d i, lcounter ale %d, %d, %d\n", __FILE__, __LINE__, i, lcount, atomic_load_explicit(guard,memory_order_seq_cst));
+		i++;
+		*/
+		//ev_nanosleep(100);
+	}
 }
 
 static void FIFO_enter(atomic_int * guard, int counter, int N)
 {
 	int lcount = counter  - N;
-	while (lcount != atomic_load_explicit(guard,memory_order_relaxed)) {
+	atomic_thread_fence(memory_order_acquire);
+	while (lcount != atomic_load_explicit(guard,memory_order_acquire)) {
 		EV_YIELD();
+		atomic_thread_fence(memory_order_acquire);
 		//ev_nanosleep(100);
 	}
 }
 
 static void FIFO_exit(atomic_int * guard, int counter)
 {
-	atomic_store_explicit(guard,counter,memory_order_relaxed);
+	atomic_store_explicit(guard,counter,memory_order_release);
 }
 
 static bool test_dec_retest(atomic_int *val)
 {
-	bool result = (atomic_load_explicit(val,memory_order_relaxed)>0);
+	bool result = (atomic_load_explicit(val,memory_order_acquire)>0);
 	if (result) {
-		if (atomic_fetch_add_explicit(val,-1,memory_order_relaxed) <= 0) {
-			atomic_fetch_add_explicit(val,1,memory_order_relaxed);
+		if (atomic_fetch_add_explicit(val,-1,memory_order_acq_rel) <= 0) {
+			atomic_fetch_add_explicit(val,1,memory_order_acq_rel);
 			result = false;
 		}
 	}
@@ -102,8 +130,10 @@ static bool ev_pqueue_is_empty(struct ev_pqueue_s * pq_ptr)
 {
 	if(!pq_ptr) EV_ABORT("");
 	if (test_dec_retest(&(pq_ptr->lb_count))) return false;
-	while (0 < atomic_load_explicit(&(pq_ptr->ub_count),memory_order_relaxed)) {
+	atomic_thread_fence(memory_order_acquire);
+	while (0 < atomic_load_explicit(&(pq_ptr->ub_count),memory_order_acquire)) {
 		EV_YIELD();
+		atomic_thread_fence(memory_order_acquire);
 		//ev_nanosleep(100);
 		if (test_dec_retest(&(pq_ptr->lb_count))) return false;
 	}
@@ -131,42 +161,46 @@ void * dequeue_ev_pqueue(ev_pqueue_type  pq_ptr)
 
 	/* Get the list for current dequeue, send the next dequeue
 	 * to next list. */
-	d_count = atomic_fetch_add_explicit(&(pq_ptr->deq_counter),1,memory_order_relaxed);
+	d_count = atomic_fetch_add_explicit(&(pq_ptr->deq_counter),1,memory_order_acq_rel);
 	index = d_count % pq_ptr->N;
 
 
 	/* Decrement ub_count to show one less element. */
-	atomic_fetch_add_explicit(&(pq_ptr->ub_count),-1,memory_order_relaxed);
+	atomic_fetch_add_explicit(&(pq_ptr->ub_count),-1,memory_order_acq_rel);
 
 	/* Make sure previous dequeue on this list has completed its critical section */
-	FIFO_enter(&(pq_ptr->gl_array[index].d_guard),d_count,pq_ptr->N);
+	dequeue_FIFO_enter(&(pq_ptr->gl_array[index].d_guard),d_count,pq_ptr->N);
 	{
+		atomic_thread_fence(memory_order_acquire);
 		first_element =
-			(struct __pis *)atomic_load_explicit(&(pq_ptr->gl_array[index].list.head),memory_order_relaxed);
+			(struct __pis *)atomic_load_explicit(&(pq_ptr->gl_array[index].list.head),memory_order_acquire);
 		while(first_element == NULL) {
 			EV_YIELD();
+			atomic_thread_fence(memory_order_acquire);
 			first_element =
-				(struct __pis *)atomic_load_explicit(&(pq_ptr->gl_array[index].list.head),memory_order_relaxed);
+				(struct __pis *)atomic_load_explicit(&(pq_ptr->gl_array[index].list.head),memory_order_acquire);
 		}
 
 		second_element = (struct __pis *)first_element->next;
 
-		atomic_store_explicit(&(pq_ptr->gl_array[index].list.head),(uintptr_t)second_element,memory_order_relaxed);
+		atomic_store_explicit(&(pq_ptr->gl_array[index].list.head),(uintptr_t)second_element,memory_order_release);
 		if (!second_element) {
 			fe = (uintptr_t)first_element;
 			if (!atomic_compare_exchange_strong_explicit(&(pq_ptr->gl_array[index].list.tail),&fe,0,
-													memory_order_relaxed,memory_order_relaxed)) {
+													memory_order_seq_cst,memory_order_seq_cst)) {
 				/* First element is no longer tail. Concurrent enqueue is detected. */
 				/* Wait until next of first is not NULL. */
+				atomic_thread_fence(memory_order_acquire);
 				while (!(first_element->next)) {
 					EV_YIELD();
+					atomic_thread_fence(memory_order_acquire);
 				}
 				/* This may be redundant. */
-				atomic_store_explicit(&(pq_ptr->gl_array[index].list.head),(first_element->next),memory_order_relaxed);
+				atomic_store_explicit(&(pq_ptr->gl_array[index].list.head),(first_element->next),memory_order_release);
 			}
 		}
 	}
-	FIFO_exit(&(pq_ptr->gl_array[index].d_guard),d_count);
+	dequeue_FIFO_exit(&(pq_ptr->gl_array[index].d_guard),d_count);
 
 	return_data = first_element->data;
 	free(first_element);
@@ -184,16 +218,16 @@ void enqueue_ev_pqueue(ev_pqueue_type pq_ptr,void * data)
 	if(!pq_ptr) EV_ABORT("");
 
 	/* Signal the presence of another element in the queue. */
-	atomic_fetch_add_explicit(&(pq_ptr->ub_count),1,memory_order_relaxed);
+	atomic_fetch_add_explicit(&(pq_ptr->ub_count),1,memory_order_acq_rel);
 	/* Enq_counter indiacates, where the current insert should take place
 	 * after the next one should go to the next list. */
 	/* Here in below e_count will have the present value.
 	 * Next time this line is executed, e_count will get the incremented value, while
 	 * the memory location will be incremented. */
-	e_count = atomic_fetch_add_explicit(&(pq_ptr->enq_counter),1,memory_order_relaxed);
+	e_count = atomic_fetch_add_explicit(&(pq_ptr->enq_counter),1,memory_order_acq_rel);
 	index = e_count % pq_ptr->N;
 	/* incr lb_count to permit another dequeue. */
-	atomic_fetch_add_explicit(&(pq_ptr->lb_count),1,memory_order_relaxed);
+	atomic_fetch_add_explicit(&(pq_ptr->lb_count),1,memory_order_acq_rel);
 
 	/* Enqueue the element on the speicified list, making sure that
 	 * previous enqueue on this list has completed the critical section. */
@@ -203,15 +237,15 @@ void enqueue_ev_pqueue(ev_pqueue_type pq_ptr,void * data)
 	//EV_DBGP("[%s:%d] eg = [%d]\n",__FILE__,__LINE__,pq_ptr->gl_array[index].e_guard);
 	FIFO_enter(&(pq_ptr->gl_array[index].e_guard),e_count,pq_ptr->N);
 	{
-		last = atomic_exchange_explicit(&(pq_ptr->gl_array[index].list.tail),(uintptr_t)qe,memory_order_relaxed);
+		last = atomic_exchange_explicit(&(pq_ptr->gl_array[index].list.tail),(uintptr_t)qe,memory_order_seq_cst);
 	}
 	FIFO_exit(&(pq_ptr->gl_array[index].e_guard),e_count);
 
 	if (!last) {
-		atomic_store_explicit(&(pq_ptr->gl_array[index].list.head),(uintptr_t)qe,memory_order_relaxed);
+		atomic_store_explicit(&(pq_ptr->gl_array[index].list.head),(uintptr_t)qe,memory_order_release);
 	}
 	else {
-		atomic_store_explicit(&(((struct __pis *)last)->next),(uintptr_t)qe,memory_order_relaxed);
+		atomic_store_explicit(&(((struct __pis *)last)->next),(uintptr_t)qe,memory_order_release);
 	}
 
 }

@@ -116,7 +116,7 @@ static void init_ev_mpiqueue_s(struct ev_piqueue_s * pq_ptr, int N)
 static void FIFO_enter(atomic_int * guard, int counter, int N)
 {
 	int lcount = counter  - N;
-	while (lcount != atomic_load_explicit(guard,memory_order_relaxed)) {
+	while (lcount != atomic_load_explicit(guard,memory_order_acquire)) {
 		EV_YIELD();
 		//ev_nanosleep(100);
 	}
@@ -124,7 +124,7 @@ static void FIFO_enter(atomic_int * guard, int counter, int N)
 
 static void FIFO_exit(atomic_int * guard, int counter)
 {
-	atomic_store_explicit(guard,counter,memory_order_relaxed);
+	atomic_store_explicit(guard,counter,memory_order_release);
 }
 
 int ev_mpiqueue_peek(struct ev_piqueue_s * pq_ptr)
@@ -170,7 +170,7 @@ void * dequeue_ev_mpiqueue(ev_piqueue_type  pq_ptr)
 		}
 		/*
 		*/
-		//d_count = atomic_fetch_add_explicit(&(pq_ptr->deq_counter),1,memory_order_relaxed);
+		//d_count = atomic_fetch_add_explicit(&(pq_ptr->deq_counter),1,memory_order_acq_rel);
 		++index;
 		index = index % pq_ptr->N;
 	}

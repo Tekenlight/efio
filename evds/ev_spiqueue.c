@@ -117,7 +117,7 @@ static void init_ev_piqueue_s(struct ev_piqueue_s * pq_ptr, int N)
 static void FIFO_enter(atomic_int * guard, int counter, int N)
 {
 	int lcount = counter  - N;
-	while (lcount != atomic_load_explicit(guard,memory_order_relaxed)) {
+	while (lcount != atomic_load_explicit(guard,memory_order_acquire)) {
 		EV_YIELD();
 		//ev_nanosleep(100);
 	}
@@ -125,7 +125,7 @@ static void FIFO_enter(atomic_int * guard, int counter, int N)
 
 static void FIFO_exit(atomic_int * guard, int counter)
 {
-	atomic_store_explicit(guard,counter,memory_order_relaxed);
+	atomic_store_explicit(guard,counter,memory_order_release);
 }
 
 static atomic_long hit_count = 0;
@@ -145,12 +145,12 @@ void * dequeue_ev_spiqueue(ev_piqueue_type  pq_ptr)
 
 	/* Get the list for current dequeue, send the next dequeue
 	 * to next list. */
-	//d_count = atomic_fetch_add_explicit(&(pq_ptr->deq_counter),1,memory_order_relaxed);
+	//d_count = atomic_fetch_add_explicit(&(pq_ptr->deq_counter),1,memory_order_acq_rel);
 	//index = d_count % pq_ptr->N;
 
 
 	/* Decrement ub_count to show one less element. */
-	//atomic_fetch_add_explicit(&(pq_ptr->ub_count),-1,memory_order_relaxed);
+	//atomic_fetch_add_explicit(&(pq_ptr->ub_count),-1,memory_order_acq_rel);
 
 	int i = 0;
 	while(1) {
@@ -162,7 +162,7 @@ void * dequeue_ev_spiqueue(ev_piqueue_type  pq_ptr)
 		/*
 		*/
 		if (-1 == basic_try_dequeue(pq_ptr->gl_array[index],&return_data)) {
-			//atomic_fetch_add_explicit(&miss_count,1,memory_order_relaxed);
+			//atomic_fetch_add_explicit(&miss_count,1,memory_order_acq_rel);
 			EV_YIELD();
 			i = 0;
 		}
@@ -170,9 +170,9 @@ void * dequeue_ev_spiqueue(ev_piqueue_type  pq_ptr)
 			/*
 		return_data = dequeue(pq_ptr->gl_array[index]);
 		*/
-			//atomic_fetch_add_explicit(&hit_count,1,memory_order_relaxed);
+			//atomic_fetch_add_explicit(&hit_count,1,memory_order_acq_rel);
 			if (return_data) {
-				atomic_fetch_add_explicit(&succ_count,-1,memory_order_relaxed);
+				atomic_fetch_add_explicit(&succ_count,-1,memory_order_acq_rel);
 				break;
 			}
 			else {
@@ -183,7 +183,7 @@ void * dequeue_ev_spiqueue(ev_piqueue_type  pq_ptr)
 		}
 			/*
 		*/
-		//d_count = atomic_fetch_add_explicit(&(pq_ptr->deq_counter),1,memory_order_relaxed);
+		//d_count = atomic_fetch_add_explicit(&(pq_ptr->deq_counter),1,memory_order_acq_rel);
 		++index;
 		index = index % pq_ptr->N;
 	}
@@ -200,16 +200,16 @@ void enqueue_ev_spiqueue(ev_piqueue_type pq_ptr,void * data)
 	if(!pq_ptr) EV_ABORT("");
 
 	/* Signal the presence of another element in the queue. */
-	//atomic_fetch_add_explicit(&(pq_ptr->ub_count),1,memory_order_relaxed);
+	//atomic_fetch_add_explicit(&(pq_ptr->ub_count),1,memory_order_acq_rel);
 	/* Enq_counter indiacates, where the current insert should take place
 	 * after the next one should go to the next list. */
 	/* Here in below e_count will have the present value.
 	 * Next time this line is executed, e_count will get the incremented value, while
 	 * the memory location will be incremented. */
-	//e_count = atomic_fetch_add_explicit(&(pq_ptr->enq_counter),1,memory_order_relaxed);
+	//e_count = atomic_fetch_add_explicit(&(pq_ptr->enq_counter),1,memory_order_acq_rel);
 	//index = e_count % pq_ptr->N;
 	/* incr lb_count to permit another dequeue. */
-	//atomic_fetch_add_explicit(&(pq_ptr->lb_count),1,memory_order_relaxed);
+	//atomic_fetch_add_explicit(&(pq_ptr->lb_count),1,memory_order_acq_rel);
 
 	/* Enqueue the element on the speicified list, making sure that
 	 * previous enqueue on this list has completed the critical section. */
@@ -224,7 +224,7 @@ void enqueue_ev_spiqueue(ev_piqueue_type pq_ptr,void * data)
 		EV_YIELD();
 	}
 	//EV_DBG(__FILE__,__LINE__);
-	atomic_fetch_add_explicit(&succ_count,1,memory_order_relaxed);
+	atomic_fetch_add_explicit(&succ_count,1,memory_order_acq_rel);
 
 	return ;
 }

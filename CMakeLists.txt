@@ -4,7 +4,7 @@ project(efio)
 
 set(CMAKE_C_STANDARD 11)
 #set(CMAKE_C_STANDARD 14)
-set(CMAKE_INSTALL_PREFIX $ENV{HOME}/usr/local)
+set(CMAKE_INSTALL_PREFIX /usr/local)
 
 file(STRINGS "${PROJECT_SOURCE_DIR}/libversion" SHARED_LIBRARY_VERSION)
 
@@ -43,6 +43,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 # set(CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} -fsanitize=address ")
 # set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -fsanitize=address ")
 
+set(CMAKE_C_COMPILER clang)
+set(CMAKE_CPP_COMPILER clang++)
 include(CXX1x)
 check_for_cxx11_compiler(CXX11_COMPILER)
 # If a C++11 compiler is available, then set the appropriate flags
@@ -54,6 +56,9 @@ if(CXX11_COMPILER)
 		enable_cxx14()
 	endif()
 endif()
+message(STATUS "CXX11_COMPILER = " ${CXX11_COMPILER})
+message(STATUS "CXX14_COMPILER = " ${CXX14_COMPILER})
+message(STATUS "CXX_COMPILER = " ${CMAKE_CXX_COMPILER_ID})
 
 if(NOT MSVC_IDE)
 	if(NOT CMAKE_BUILD_TYPE)

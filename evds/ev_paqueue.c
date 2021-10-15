@@ -100,7 +100,7 @@ int peek_evpaq(struct ev_paqueue_s * q_ptr)
 	}
 	
 	for (int index = 0; index < q_ptr->N; index ++) {
-		t = atomic_load_explicit(&(q_ptr->qa[index].head),memory_order_relaxed);
+		t = atomic_load_explicit(&(q_ptr->qa[index].head),memory_order_acquire);
 		if (t) break;
 	}
 
@@ -132,7 +132,7 @@ void * dequeue_evpaq(struct ev_paqueue_s * q_ptr)
 		d_count++;
 		index = d_count % q_ptr->N;
 		++try_count;
-		old_t = atomic_load_explicit(&(q_ptr->qa[index].tail),memory_order_relaxed);
+		old_t = atomic_load_explicit(&(q_ptr->qa[index].tail),memory_order_acquire);
 		if (!old_t) {
 			//EV_YIELD();
 			continue;	
@@ -141,7 +141,7 @@ void * dequeue_evpaq(struct ev_paqueue_s * q_ptr)
 		try_count = 0;
 
 		{
-			old_h = atomic_load_explicit(&(q_ptr->qa[index].head),memory_order_relaxed);
+			old_h = atomic_load_explicit(&(q_ptr->qa[index].head),memory_order_acquire);
 			if (!old_h) {
 				EV_YIELD();
 				continue;
@@ -150,7 +150,7 @@ void * dequeue_evpaq(struct ev_paqueue_s * q_ptr)
 				new_h = old_h;
 				new_h = (1|new_h);
 				if (atomic_compare_exchange_strong_explicit(&(q_ptr->qa[index].head),&old_h,new_h,
-														memory_order_relaxed,memory_order_relaxed)) {
+														memory_order_seq_cst,memory_order_seq_cst)) {
 					marked_new_h = new_h;
 					//try_count = 0;
 					break;
@@ -163,9 +163,9 @@ void * dequeue_evpaq(struct ev_paqueue_s * q_ptr)
 	if (try_count >= q_ptr->N) return NULL;
 
 	new_h = old_h;
-	next = atomic_load_explicit(&(((struct __s *)(new_h))->next),memory_order_relaxed);
+	next = atomic_load_explicit(&(((struct __s *)(new_h))->next),memory_order_acquire);
 
-	old_t = atomic_load_explicit(&(q_ptr->qa[index].tail),memory_order_relaxed);
+	old_t = atomic_load_explicit(&(q_ptr->qa[index].tail),memory_order_acquire);
 	// Assert at this point tail cannot be null.
 	if (old_t == 0) { // Dont know what to do abort??
 		return NULL;
@@ -176,26 +176,26 @@ void * dequeue_evpaq(struct ev_paqueue_s * q_ptr)
 		bool flg = false;
 		uintptr_t	new_h1 =0;
 		new_h1 = new_h; // new_h1 to avaoid any side effect on new_h due to CAS below.
-		flg = atomic_compare_exchange_strong_explicit(&(q_ptr->qa[index].tail),&new_h1,0,memory_order_relaxed,memory_order_relaxed);
+		flg = atomic_compare_exchange_strong_explicit(&(q_ptr->qa[index].tail),&new_h1,0,memory_order_seq_cst,memory_order_seq_cst);
 		// If old and new tails are not same, it means a new node has come into
 		// existence.
 		if (!flg) {
 			// Repeat as long as next header is null.
 			do {
-				next = atomic_load_explicit(&(((struct __s *)(new_h))->next),memory_order_relaxed);
+				next = atomic_load_explicit(&(((struct __s *)(new_h))->next),memory_order_acquire);
 				EV_YIELD();
 			} while (!next);
 		}
 	}
 
 	new_h = next;
-	atomic_thread_fence(memory_order_relaxed);
+	atomic_thread_fence(memory_order_acq_rel);
 	if (!(1&old_h))
 		old_h = (1|old_h);
 
 	{
 		uintptr_t oold_h = old_h;
-		flg = atomic_compare_exchange_strong_explicit(&(q_ptr->qa[index].head),&oold_h,new_h,memory_order_relaxed,memory_order_relaxed);
+		flg = atomic_compare_exchange_strong_explicit(&(q_ptr->qa[index].head),&oold_h,new_h,memory_order_seq_cst,memory_order_seq_cst);
 		if (!flg) {
 			// Is this fatal. If so, needs to be handled with assert
 			// It is not fatal.
@@ -211,7 +211,7 @@ void * dequeue_evpaq(struct ev_paqueue_s * q_ptr)
 			//return NULL;
 		}
 	}
-	atomic_thread_fence(memory_order_relaxed);
+	atomic_thread_fence(memory_order_acq_rel);
 	old_h = (~1&old_h);
 
 	// Now old_h has what we want.
@@ -235,14 +235,14 @@ void enqueue_evpaq(struct ev_paqueue_s * q_ptr,void * data)
 
 	e_count = atomic_fetch_add(&(q_ptr->enq_counter),1);
 	index = e_count % q_ptr->N;
-	old_tail = atomic_exchange_explicit(&(q_ptr->qa[index].tail),(uintptr_t)ptr,memory_order_relaxed);
+	old_tail = atomic_exchange_explicit(&(q_ptr->qa[index].tail),(uintptr_t)ptr,memory_order_acq_rel);
 
 	if (old_tail) {
 		atomic_store_explicit(&(((struct __s *)old_tail)->next),
-										(uintptr_t)ptr,memory_order_relaxed);
+										(uintptr_t)ptr,memory_order_release);
 	}
 	else {
-		atomic_exchange_explicit(&(q_ptr->qa[index].head),(uintptr_t)ptr,memory_order_relaxed);
+		atomic_exchange_explicit(&(q_ptr->qa[index].head),(uintptr_t)ptr,memory_order_acq_rel);
 	}
 
 	return;

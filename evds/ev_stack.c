@@ -43,7 +43,7 @@ void push(ev_stack_type stptr,void * data)
 	// Else a branch can get created, if there is a concurrent thread trying to push
 	// a record with the same starting state of the stack.
 	while (!atomic_compare_exchange_strong_explicit(&stptr->head,&old_h,
-				(uintptr_t)sptr,memory_order_relaxed,memory_order_relaxed))
+				(uintptr_t)sptr,memory_order_seq_cst,memory_order_seq_cst))
 		sptr->next = (struct __s *)(old_h&~1);
 }
 
@@ -55,18 +55,18 @@ void * pop(ev_stack_type stptr)
 	uintptr_t	new_h = 0;
 
 	do {
-		old_h = atomic_load_explicit(&stptr->head,memory_order_relaxed);
+		old_h = atomic_load_explicit(&stptr->head,memory_order_acquire);
 		if (!old_h) return NULL;
 		if (old_h&1) continue;
 		m_old_h = old_h + 1;
 		if (!atomic_compare_exchange_strong_explicit(&stptr->head,&old_h,m_old_h,
-						memory_order_relaxed,memory_order_relaxed)) continue;
+						memory_order_seq_cst,memory_order_seq_cst)) continue;
 		// Now no one else will pop it out. Therefore safe to dereference it.
 		new_h = (uintptr_t)(((struct __s *)old_h)->next);
 		// However some one else can push a node and change the head
 		// If that has happened, start all over again.
 		if (!atomic_compare_exchange_strong_explicit(&stptr->head,&m_old_h,new_h,
-						memory_order_relaxed,memory_order_relaxed)) continue;
+						memory_order_seq_cst,memory_order_seq_cst)) continue;
 		data = ((struct __s *)old_h)->data;
 		break;
 	} while (true);

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
+#include <unistd.h>
 /*
 int noprintf(char * s, ...)
 {
