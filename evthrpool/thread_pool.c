@@ -103,19 +103,23 @@ static void * thread_loop(void *data)
 				if ((sleeping_time + pool->_min_sleep_usec)<pool->_max_sleep_usec) i++;
 			}
 		}
-		if (qe != NULL) {
-			if (!(qe->_task_function)) {
-				// If stop signal is coming out of a NULL task
-				//printf("%s:%d [%p]\n", __FILE__, __LINE__, pthread_self());
+		if (s) {
+			// If stop signal is coming out of _shutdown set to 1
+			//printf("%s:%d [%lx]\n", __FILE__, __LINE__, pthread_self());
+			if (qe) {
+				//printf("%s:%d [%lx]\n", __FILE__, __LINE__, pthread_self());
 				free(qe);
-				break;
 			}
+			break;
 		}
 		else {
-			//printf("%s:%d [%p]\n", __FILE__, __LINE__, pthread_self());
-			if (s) {
-				// If stop signal is coming out of _shutdown set to 1
-				break;
+			if (qe != NULL) {
+				if (!(qe->_task_function)) {
+					// If stop signal is coming out of a NULL task
+					//printf("%s:%d [%lx]\n", __FILE__, __LINE__, pthread_self());
+					free(qe);
+					break;
+				}
 			}
 			else {
 				EV_ABORT("Dequeued element cannot be NULL. ");
@@ -302,11 +306,11 @@ int destroy_thread_pool(struct thread_pool_s *pool)
 	wake_all_threads(pool,0);
 
 	for (int i=0;i<pool->_num_threads ; i++) {
-		//printf("%s:%d thread=[%d] thread id [%p]\n", __FILE__, __LINE__, i, pool->_threads[i]._t);
 		if (pthread_join(pool->_threads[i]._t,NULL)) {
-			//printf("%s:%d thread=[%d] thread id [%p]\n", __FILE__, __LINE__, i, pool->_threads[i]._t);
+			//printf("%s:%d thread=[%d] thread id [%lx]\n", __FILE__, __LINE__, i, pool->_threads[i]._t);
 			EV_ABORT("pthread_join failed");
 		}
+		//printf("%s:%d thread=[%d] thread id [%lx]\n", __FILE__, __LINE__, i, pool->_threads[i]._t);
 	}
 	//printf("%s:%d\n", __FILE__, __LINE__);
 
