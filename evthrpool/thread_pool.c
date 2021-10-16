@@ -80,7 +80,7 @@ static void * thread_loop(void *data)
 	pool->_threads[thr_index]._state = THREAD_FREE;
 	for (;;) {
 		s = atomic_load_explicit(&(pool->_shutdown),memory_order_acquire);
-		if (s) break;
+		//if (s) break;
 		qe = dequeue(pool->_task_queue);
 		if (!qe) {
 			int i = 0;
@@ -105,12 +105,38 @@ static void * thread_loop(void *data)
 		}
 		if (s) {
 			// If stop signal is coming out of _shutdown set to 1
-			//printf("%s:%d [%lx]\n", __FILE__, __LINE__, pthread_self());
+			//EV_DBGP("Here\n");
 			if (qe) {
-				//printf("%s:%d [%lx]\n", __FILE__, __LINE__, pthread_self());
-				free(qe);
+				//EV_DBGP("[%p]\n", qe);
+				if ((qe->_task_function)) {
+					//EV_DBGP("Here\n");
+				}
+				else {
+					//EV_DBGP("[%p]\n", qe);
+					free(qe);
+					qe = NULL;
+					break;
+				}
 			}
-			break;
+			else {
+				qe = dequeue(pool->_task_queue);
+				if (qe) {
+					//EV_DBGP("[%p]\n", qe);
+					if ((qe->_task_function)) {
+						//EV_DBGP("Here\n");
+					}
+					else {
+						//EV_DBGP("[%p]\n", qe);
+						free(qe);
+						qe = NULL;
+						break;
+					}
+				}
+				else {
+					//EV_DBGP("Here\n");
+					break;
+				}
+			}
 		}
 		else {
 			if (qe != NULL) {
@@ -301,9 +327,8 @@ int destroy_thread_pool(struct thread_pool_s *pool)
 		return -1;
 	}
 
-	atomic_store_explicit(&(pool->_shutdown),1,memory_order_release);
-
 	wake_all_threads(pool,0);
+	atomic_store_explicit(&(pool->_shutdown),1,memory_order_release);
 
 	for (int i=0;i<pool->_num_threads ; i++) {
 		if (pthread_join(pool->_threads[i]._t,NULL)) {
