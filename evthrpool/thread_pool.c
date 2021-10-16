@@ -8,11 +8,11 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ev_queue.h>
+#include <assert.h>
 
 struct task_s {
 	task_func_type		_task_function;
 	task_argument_type	_arg;
-	int					_shutdown;
 };
 
 struct thr_s {
@@ -103,8 +103,22 @@ static void * thread_loop(void *data)
 				if ((sleeping_time + pool->_min_sleep_usec)<pool->_max_sleep_usec) i++;
 			}
 		}
-		if (!(qe->_task_function)) {
-			break;
+		assert(qe != NULL);
+		if (qe != NULL) {
+			if (!(qe->_task_function)) {
+				// If stop signal is coming out of a NULL task
+				//printf("%s:%d [%p]\n", __FILE__, __LINE__, pthread_self());
+				free(qe);
+				break;
+			}
+		}
+		else {
+			//printf("%s:%d [%p]\n", __FILE__, __LINE__, pthread_self());
+			if (s) {
+				// If stop signal is coming out of _shutdown set to 1
+				free(qe);
+				break;
+			}
 		}
 		atomic_thread_fence(memory_order_acq_rel);
 		pool->_threads[thr_index]._state = THREAD_BUSY;
@@ -131,6 +145,7 @@ static void wake_all_threads(struct thread_pool_s *pool, int immediate)
 	for (int i = 0; i < pool->_num_threads; i++) {
 		qe = malloc(sizeof(struct task_s));
 		qe->_task_function = NULL;
+		qe->_arg = NULL;
 		enqueue(pool->_task_queue,qe);
 	}
 	return;
@@ -158,6 +173,7 @@ struct thread_pool_s * create_thread_pool(int num_threads)
 	pool = malloc(sizeof(struct thread_pool_s));
 
 	pool->_threads = malloc(num_threads*sizeof(struct thr_s));
+	memset(pool->_threads, 0, num_threads*sizeof(struct thr_s));
 	pool->_num_threads = 0;
 	pool->_cond_count = 0;
 	pool->_task_queue = create_ev_queue();
@@ -177,6 +193,7 @@ struct thread_pool_s * create_thread_pool(int num_threads)
 				EV_ABORT("Could not create thread \n");
 				return NULL;
 			}
+			//printf("%s:%d Created thread [%p]\n", __FILE__, __LINE__, pool->_threads[i]._t);
 			pool->_threads[i]._state = THREAD_FREE;
 			pool->_threads[i]._task_count = 0;
 			pool->_num_threads++;
@@ -284,9 +301,13 @@ int destroy_thread_pool(struct thread_pool_s *pool)
 	wake_all_threads(pool,0);
 
 	for (int i=0;i<pool->_num_threads ; i++) {
-		if (pthread_join(pool->_threads[i]._t,NULL))
+		//printf("%s:%d thread=[%d] thread id [%p]\n", __FILE__, __LINE__, i, pool->_threads[i]._t);
+		if (pthread_join(pool->_threads[i]._t,NULL)) {
+			//printf("%s:%d thread=[%d] thread id [%p]\n", __FILE__, __LINE__, i, pool->_threads[i]._t);
 			EV_ABORT("pthread_join failed");
+		}
 	}
+	//printf("%s:%d\n", __FILE__, __LINE__);
 
 	free_thread_pool(pool);
 

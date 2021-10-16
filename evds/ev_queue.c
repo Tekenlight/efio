@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdatomic.h>
+#include <assert.h>
 
 struct ev_queue_s {
 	atomic_uintptr_t	head;
@@ -207,6 +208,7 @@ void * dequeue(struct ev_queue_s * q_ptr)
 
 	old_t = atomic_load_explicit(&(q_ptr->tail),memory_order_acquire);
 	// Assert at this point tail cannot be null.
+	assert(old_t != 0);
 	if (old_t == 0) { // Dont know what to do abort??
 		EV_DBG();
 		return NULL;
@@ -253,6 +255,8 @@ void * dequeue(struct ev_queue_s * q_ptr)
 	}
 	atomic_thread_fence(memory_order_acq_rel);
 	old_h = (~1&old_h);
+
+	assert(old_h != 0);
 
 	// Now old_h has what we want.
 	data = ((struct __s *)old_h)->data;

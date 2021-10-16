@@ -33,7 +33,7 @@ void * enq(void *data)
 		enqueue_task(sptr->pool, task_func, (void*)("WORLD HELLO"));;
 		//usleep(100000);
 	}
-	//printf("ENQ complete [%p]\n",pthread_self());
+	printf("ENQ complete [%p]\n",pthread_self());
 	return NULL;
 }
 
@@ -59,6 +59,7 @@ int run_ev_globals_test()
 	pthread_join(t2,NULL);
 	pthread_join(t3,NULL);
 	pthread_join(t4,NULL);
+	printf("All enqueues complete\n");
 	/*
 	retval = enq(&s);
 	retval = enq(&s);
@@ -80,8 +81,12 @@ int run_ev_globals_test()
 		}
 	}
 
-	printf("Number of exec times = [%d]\n", total);
+	printf("1 Number of exec times = [%d]\n", total);
+	printf("2 Number of exec times = [%d]\n", total);
 	destroy_thread_pool(pool);
+
+
+	printf("3 Number of exec times = [%d]\n", total);
 
 	return (total == N)?0:1;
 }
