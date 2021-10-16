@@ -103,7 +103,6 @@ static void * thread_loop(void *data)
 				if ((sleeping_time + pool->_min_sleep_usec)<pool->_max_sleep_usec) i++;
 			}
 		}
-		assert(qe != NULL);
 		if (qe != NULL) {
 			if (!(qe->_task_function)) {
 				// If stop signal is coming out of a NULL task
@@ -116,8 +115,10 @@ static void * thread_loop(void *data)
 			//printf("%s:%d [%p]\n", __FILE__, __LINE__, pthread_self());
 			if (s) {
 				// If stop signal is coming out of _shutdown set to 1
-				free(qe);
 				break;
+			}
+			else {
+				EV_ABORT("Dequeued element cannot be NULL. ");
 			}
 		}
 		atomic_thread_fence(memory_order_acq_rel);
