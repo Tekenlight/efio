@@ -1745,18 +1745,6 @@ void ef_init()
 	 * */
 	sg_page_size =  256 * sg_page_size;
 
-	/* Start the thread pool needed to carryout the file operations
-	 * in an async manner.
-	 * One thread reserved for transfering data from memory to disk
-	 * 2 threads for carrying out asynchrnous, read, open and close
-	 * operations.
-	 */
-	if (!sg_disk_io_thr_pool) sg_disk_io_thr_pool = create_thread_pool(2);
-	sg_file_writer_pool = create_thread_pool(1);
-	sg_slow_sync_pool = create_thread_pool(1);
-	enqueue_task(sg_file_writer_pool,file_writer,NULL);
-	enqueue_task(sg_slow_sync_pool,slow_sync,NULL);
-
 	/* Setup the table to hold the state data of files. */
 	for (int i = 0; i < EF_MAX_FILES; i++) {
 		sg_open_files[i] = NULL;
@@ -1766,6 +1754,21 @@ void ef_init()
 	sg_file_writer_queue = create_ev_queue();
 	sg_slow_sync_queue = create_ev_queue();
 	setup_fd_slots();
+
+	atomic_thread_fence(memory_order_release);
+
+	/* Start the thread pool needed to carryout the file operations
+	 * in an async manner.
+	 * One thread reserved for transfering data from memory to disk
+	 * 2 threads for carrying out asynchrnous, read, open and close
+	 * operations.
+	 */
+	if (!sg_disk_io_thr_pool) sg_disk_io_thr_pool = create_thread_pool(2);
+	sg_file_writer_pool = create_thread_pool(1);
+	sg_slow_sync_pool = create_thread_pool(1);
+
+	enqueue_task(sg_file_writer_pool,file_writer,NULL);
+	enqueue_task(sg_slow_sync_pool,slow_sync,NULL);
 
 	sg_ef_init_done = 1;
 
