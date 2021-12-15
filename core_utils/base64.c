@@ -90,10 +90,14 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 	int i = 0, out_index = 0, state = 0, ch = 0;
 	uint32_t sextet = 0;
 	unsigned char *decoded_data = NULL;
+	size_t estimated_output_length = 0;
 
-	*output_length = ((input_length / 4) * 3);
-	decoded_data = alloc_binary_data_memory(*output_length);
+	estimated_output_length = ((input_length / 4) * 3);
+	decoded_data = alloc_binary_data_memory(estimated_output_length);
 	if (decoded_data == NULL) return NULL;
+
+	*output_length = 0;
+
 
 	state = 0;
 	out_index = 0;
@@ -120,7 +124,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 		switch (state) {
 			case 0:
 				if (decoded_data) {
-					if ((size_t)out_index >= *output_length) {
+					if ((size_t)out_index >= estimated_output_length) {
 						free_binary_data(decoded_data);
 						return NULL;
 					}
@@ -130,33 +134,31 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 				break;
 			case 1:
 				if (decoded_data) {
-					if ((size_t)out_index + 1 >= *output_length) {
+					if ((size_t)out_index + 1 >= estimated_output_length) {
 						free_binary_data(decoded_data);
 						return NULL;
 					}
 					decoded_data[out_index] |= sextet >> 4;
-					decoded_data[out_index + 1] = (sextet & 0x0f)
-										   << 4;
+					decoded_data[out_index + 1] = (sextet & 0x0f) << 4;
 				}
 				out_index++;
 				state = 2;
 				break;
 			case 2:
 				if (decoded_data) {
-					if ((size_t)out_index + 1 >= *output_length) {
+					if ((size_t)out_index + 1 >= estimated_output_length) {
 						free_binary_data(decoded_data);
 						return NULL;
 					}
 					decoded_data[out_index] |= sextet >> 2;
-					decoded_data[out_index + 1] = (sextet & 0x03)
-										   << 6;
+					decoded_data[out_index + 1] = (sextet & 0x03) << 6;
 				}
 				out_index++;
 				state = 3;
 				break;
 			case 3:
 				if (decoded_data) {
-					if ((size_t)out_index >= *output_length) {
+					if ((size_t)out_index >= estimated_output_length) {
 						free_binary_data(decoded_data);
 						return NULL;
 					}
@@ -170,6 +172,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 				return NULL;
 		}
 	}
+	(*output_length) = out_index;
 
 	/*
 	* We are done decoding Base-64 chars.  Let's see if we ended
