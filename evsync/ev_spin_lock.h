@@ -3,7 +3,6 @@
 
 
 #include <stdlib.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <pthread.h>
 #include <ev_include.h>

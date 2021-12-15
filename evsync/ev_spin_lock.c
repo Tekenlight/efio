@@ -1,3 +1,4 @@
+#include <stdatomic.h>
 #include <ev_spin_lock.h>
 
 struct spin_lock {
