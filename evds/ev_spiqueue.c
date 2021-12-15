@@ -20,7 +20,7 @@ struct qe_s {
 struct basic_queue_s {
 	struct qe_s * head;
 	struct qe_s * tail;
-	spin_lock_type m;
+	spin_lock_p_type m;
 };
 
 static struct basic_queue_s * create_basic_queue()
@@ -29,7 +29,7 @@ static struct basic_queue_s * create_basic_queue()
 
 	q->head  = NULL;
 	q->tail  = NULL;
-	q->m = false;
+	q->m = create_spin_lock();
 
 	return q;
 }
@@ -37,8 +37,8 @@ static struct basic_queue_s * create_basic_queue()
 static int basic_enqueue(struct basic_queue_s * q, void *data)
 {
 	struct qe_s * qe = NULL;
-	//if (!ev_spin_try_lock(&(q->m))) return -1;
-	ev_spin_lock(&(q->m));
+	//if (!ev_spin_try_lock((q->m))) return -1;
+	ev_spin_lock((q->m));
 	qe = malloc(sizeof(struct qe_s));
 	qe->data = data;
 	qe->next = NULL;
@@ -49,21 +49,21 @@ static int basic_enqueue(struct basic_queue_s * q, void *data)
 		q->tail->next = qe;
 		q->tail = qe;
 	}
-	ev_spin_unlock(&(q->m));
+	ev_spin_unlock((q->m));
 	return 0;
 }
 
 static int basic_try_dequeue(struct basic_queue_s * q,void **return_data)
 {
 	*return_data = NULL;
-	//if (!ev_spin_try_lock(&q->m)) return -1;
-	ev_spin_lock(&(q->m));
+	//if (!ev_spin_try_lock(q->m)) return -1;
+	ev_spin_lock((q->m));
 	if (q->head != NULL) {
 		*return_data = q->head;
 		q->head = q->head->next;
 		if (!(q->head)) q->tail = q->head; 
 	}
-	ev_spin_unlock(&(q->m));
+	ev_spin_unlock((q->m));
 
 	return 0;
 }
