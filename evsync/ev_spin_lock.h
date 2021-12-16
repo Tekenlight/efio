@@ -13,6 +13,7 @@ typedef struct spin_lock *spin_lock_p_type;
 
 __BEGIN_DECLS
 spin_lock_p_type create_spin_lock();
+void destroy_spin_lock(spin_lock_p_type);
 void ev_spin_lock(spin_lock_p_type s);
 void ev_spin_unlock(spin_lock_p_type s);
 int ev_spin_try_lock(spin_lock_p_type s);

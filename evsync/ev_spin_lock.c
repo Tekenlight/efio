@@ -14,6 +14,10 @@ spin_lock_p_type create_spin_lock()
 	return sp;
 }
 
+void destroy_spin_lock(spin_lock_p_type s)
+{
+	free(s);
+}
 
 int ev_spin_try_lock(spin_lock_p_type s)
 {
