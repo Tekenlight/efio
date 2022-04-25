@@ -41,6 +41,8 @@ struct thread_pool_s {
 	int					_min_sleep_usec;
 	int					_max_sleep_usec;
 	int					_alwd_busy_waits;
+	pthread_cond_t		_cond;
+	pthread_mutex_t		_mutex;
 };
 
 struct thr_free_s {
@@ -71,36 +73,81 @@ static void * thread_loop(void *data)
 	int						slept_count = 0;
 	int						sleeping_time = 0;
 	int						slept_time = 0;
+	int						ret = 0;
 
 	pool = ((struct thr_inp_data_s *)data)->_pool;
 	thr_index = ((struct thr_inp_data_s *)data)->_thr_index;
 	free(data);
 	data = NULL; //Seems to be giving problem in Ubuntu
 
+	//EV_DBGP("POOL = [%p]\n", pool);
 	pool->_threads[thr_index]._state = THREAD_FREE;
 	for (;;) {
+		//EV_DBGP("Here\n");
 		s = atomic_load_explicit(&(pool->_shutdown),memory_order_acquire);
 		//if (s) break;
-		qe = dequeue(pool->_task_queue);
-		if (!qe) {
+		//qe = dequeue(pool->_task_queue);
+		//EV_DBGP("Here qe = [%p]\n", qe);
+		//if (!qe && !s)
+		if (!s) {
+			//EV_DBGP("Here qe = [%p] s = [%d]\n", qe, s);
 			int i = 0;
 			while (s == 0) {
-				pool->_threads[thr_index]._subscribed = true;
-				sleeping_time = (i>pool->_alwd_busy_waits)?i*pool->_min_sleep_usec:0;
-				slept_time += sleeping_time;
-				slept_count++;
-				if (pool->_threads[thr_index]._subscribed) {
-					if (i>pool->_alwd_busy_waits) usleep(sleeping_time);
-					else EV_YIELD();
-				}
-				pool->_threads[thr_index]._subscribed = false;
+				/* Changed logic as part of refactoring, this mechanism
+				 * of waiting for a task is changed to that of 
+				 * using pthread_cond_t variables.
+				//pool->_threads[thr_index]._subscribed = true;
+				//sleeping_time = (i>pool->_alwd_busy_waits)?i*pool->_min_sleep_usec:0;
+				//slept_time += sleeping_time;
+				//slept_count++;
+				//if (pool->_threads[thr_index]._subscribed) {
+					//if (i>pool->_alwd_busy_waits) usleep(sleeping_time);
+					//else EV_YIELD();
+					//EV_YIELD();
+				//}
+				//pool->_threads[thr_index]._subscribed = false;
+				*/
 
 				qe = dequeue(pool->_task_queue);
 				if (qe) {
 					break;
 				}
+
+				ret = 0;
+				ret = pthread_mutex_lock(&(pool->_mutex));
+				if (ret) {
+					EV_DBGP("POOL COND = [%p]\n", &(pool->_cond));
+					EV_ABORT("%s\n", strerror(ret));
+				}
+
 				s = atomic_load_explicit(&(pool->_shutdown),memory_order_acquire);
-				if ((sleeping_time + pool->_min_sleep_usec)<pool->_max_sleep_usec) i++;
+				if (s) {
+					pthread_mutex_unlock(&(pool->_mutex));
+					break;
+				}
+				qe = dequeue(pool->_task_queue);
+				if (qe) {
+					pthread_mutex_unlock(&(pool->_mutex));
+					break;
+				}
+
+				ret = 0;
+				EV_DBGP("Here\n");
+				ret = pthread_cond_wait(&(pool->_cond), &(pool->_mutex));
+				if (ret) {
+					EV_DBGP("POOL COND = [%p] \n", &(pool->_cond));
+					EV_DBGP("%s\n", strerror(ret));
+					EV_ABORT("%s\n", strerror(ret));
+				}
+				pthread_mutex_unlock(&(pool->_mutex));
+				qe = dequeue(pool->_task_queue);
+				if (qe) {
+					break;
+				}
+
+				//EV_DBGP("WAITING COMPLETE FOR COND on [%p]\n", pool);fflush(stdout);
+				s = atomic_load_explicit(&(pool->_shutdown),memory_order_acquire);
+				//if ((sleeping_time + pool->_min_sleep_usec)<pool->_max_sleep_usec) i++;
 			}
 		}
 		if (s) {
@@ -179,16 +226,25 @@ static void wake_all_threads(struct thread_pool_s *pool, int immediate)
 		qe->_arg = NULL;
 		enqueue(pool->_task_queue,qe);
 	}
+	//EV_DBGP("WAKING ALL THREADS [%d] on [%p]\n", pool->_num_threads, pool);fflush(stdout);
+	pthread_mutex_lock(&(pool->_mutex));
+	pthread_cond_broadcast(&(pool->_cond));
+	pthread_mutex_unlock(&(pool->_mutex));
 	return;
 }
 
 static void wake_any_one_thread(struct thread_pool_s *pool)
 {
+	//EV_DBGP("SIGNALLING CONDITION on [%p]\n", pool);fflush(stdout);
+	pthread_mutex_lock(&(pool->_mutex));
+	pthread_cond_signal(&(pool->_cond));
+	pthread_mutex_unlock(&(pool->_mutex));
 	return;
 }
 
 struct thread_pool_s * create_thread_pool(int num_threads)
 {
+	//EV_DBGP("CREATING A THREAD POOL OF [%d] THREADS\n", num_threads);fflush(stdout);
 	struct thread_pool_s * pool =NULL;
 	pthread_attr_t attr;
 
@@ -202,6 +258,8 @@ struct thread_pool_s * create_thread_pool(int num_threads)
 	}
 
 	pool = malloc(sizeof(struct thread_pool_s));
+	//EV_DBGP("POOL = [%p]\n", pool);fflush(stdout);
+	memset(pool, 0, sizeof(struct thread_pool_s));
 
 	pool->_threads = malloc(num_threads*sizeof(struct thr_s));
 	memset(pool->_threads, 0, num_threads*sizeof(struct thr_s));
@@ -214,6 +272,13 @@ struct thread_pool_s * create_thread_pool(int num_threads)
 	pool->_min_sleep_usec = MIN_SLEEP_USEC;;
     pool->_max_sleep_usec = MAX_SLEEP_USEC;
     pool->_alwd_busy_waits = ALWD_BUSY_WAITS;
+	//EV_DBGP("POOL = [%p]\n", pool);
+	int ret = pthread_cond_init(&(pool->_cond), NULL);
+	pthread_mutex_init(&(pool->_mutex), NULL);
+	//EV_DBGP("POOL COND = [%p] ret=[%d]\n", &(pool->_cond), ret); fflush(stdout);
+	if (ret) {
+		EV_ABORT("%s\n", strerror(ret));
+	}
 	{
 		for (int i=0; i < num_threads;i++) {
 			struct thr_inp_data_s * data = malloc(sizeof(struct thr_inp_data_s));
@@ -243,6 +308,7 @@ static void free_thread_pool(struct thread_pool_s *pool)
     free(pool->_threads);
 	destroy_ev_queue(pool->_task_queue);
 	destroy_ev_queue(pool->_free_thr_queue);
+	pthread_cond_destroy(&(pool->_cond));
 
 	return;
 }
@@ -286,16 +352,6 @@ void enqueue_task_function (struct thread_pool_s *pool, task_func_with_return_t 
 	tdp->_task_func = func;
 	tdp->_on_complete = notification_func;
 
-	/*
-	struct task_s * qe = NULL;
-	qe = malloc(sizeof(struct task_s));
-	qe->_task_function = envelope_function;
-	qe->_arg = tdp;
-	enqueue(pool->_task_queue,qe);
-
-	atomic_fetch_add(&pool->_cond_count,1);
-	wake_any_one_thread(pool);
-	*/
 	enqueue_task(pool, envelope_function, tdp);
 }
 
