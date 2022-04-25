@@ -132,7 +132,6 @@ static void * thread_loop(void *data)
 				}
 
 				ret = 0;
-				EV_DBGP("Here\n");
 				ret = pthread_cond_wait(&(pool->_cond), &(pool->_mutex));
 				if (ret) {
 					EV_DBGP("POOL COND = [%p] \n", &(pool->_cond));
