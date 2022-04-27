@@ -361,8 +361,8 @@ int destroy_thread_pool(struct thread_pool_s *pool)
 		return -1;
 	}
 
-	wake_all_threads(pool,0);
 	atomic_store_explicit(&(pool->_shutdown),1,memory_order_release);
+	wake_all_threads(pool,0);
 
 	for (int i=0;i<pool->_num_threads ; i++) {
 		if (pthread_join(pool->_threads[i]._t,NULL)) {
