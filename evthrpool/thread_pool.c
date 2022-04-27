@@ -83,31 +83,10 @@ static void * thread_loop(void *data)
 	//EV_DBGP("POOL = [%p]\n", pool);
 	pool->_threads[thr_index]._state = THREAD_FREE;
 	for (;;) {
-		//EV_DBGP("Here\n");
 		s = atomic_load_explicit(&(pool->_shutdown),memory_order_acquire);
-		//if (s) break;
-		//qe = dequeue(pool->_task_queue);
-		//EV_DBGP("Here qe = [%p]\n", qe);
-		//if (!qe && !s)
 		if (!s) {
-			//EV_DBGP("Here qe = [%p] s = [%d]\n", qe, s);
 			int i = 0;
 			while (s == 0) {
-				/* Changed logic as part of refactoring, this mechanism
-				 * of waiting for a task is changed to that of 
-				 * using pthread_cond_t variables.
-				//pool->_threads[thr_index]._subscribed = true;
-				//sleeping_time = (i>pool->_alwd_busy_waits)?i*pool->_min_sleep_usec:0;
-				//slept_time += sleeping_time;
-				//slept_count++;
-				//if (pool->_threads[thr_index]._subscribed) {
-					//if (i>pool->_alwd_busy_waits) usleep(sleeping_time);
-					//else EV_YIELD();
-					//EV_YIELD();
-				//}
-				//pool->_threads[thr_index]._subscribed = false;
-				*/
-
 				qe = dequeue(pool->_task_queue);
 				if (qe) {
 					break;
