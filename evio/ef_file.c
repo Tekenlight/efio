@@ -61,6 +61,8 @@ static thread_pool_type sg_disk_io_thr_pool = NULL;;
 static thread_pool_type sg_file_writer_pool = NULL;;
 static thread_pool_type sg_slow_sync_pool = NULL;;
 static ev_queue_type sg_file_writer_queue = NULL;;
+static pthread_mutex_t sg_file_writer_mutex;
+static pthread_cond_t sg_file_writer_cond;
 static ev_queue_type sg_slow_sync_queue = NULL;;
 static size_t sg_page_size = 0;
 static pthread_t sg_file_writer_tid;
@@ -937,7 +939,10 @@ static void ef_file_write(void * data)
 		fwt->_cmd = fw_write_cmpl_evt;
 		fwt->_file_ptr = file_ptr;
 		enqueue(sg_file_writer_queue,fwt);
-		pthread_kill(sg_file_writer_tid,SIGINT);
+		//pthread_kill(sg_file_writer_tid,SIGINT);
+		pthread_mutex_lock(&sg_file_writer_mutex);
+		pthread_cond_signal(&sg_file_writer_cond);
+		pthread_mutex_unlock(&sg_file_writer_mutex);
 	}
 
 	return;
@@ -1029,7 +1034,10 @@ static void sync_file_writes(int fd)
 		fwt->_cmd = fw_write_req_evt;
 		fwt->_file_ptr = file_ptr;
 		enqueue(sg_file_writer_queue,fwt);
-		pthread_kill(sg_file_writer_tid,SIGINT);
+		//pthread_kill(sg_file_writer_tid,SIGINT);
+		pthread_mutex_lock(&sg_file_writer_mutex);
+		pthread_cond_signal(&sg_file_writer_cond);
+		pthread_mutex_unlock(&sg_file_writer_mutex);
 	}
 
 	{
@@ -1086,7 +1094,13 @@ static void file_writer(void * data)
 
 	while (1) {
 		fwt = dequeue(sg_file_writer_queue);
-		if (fwt) {
+		while (!fwt) {
+			pthread_mutex_lock(&sg_file_writer_mutex);
+			pthread_cond_wait(&sg_file_writer_cond, &sg_file_writer_mutex);
+			pthread_mutex_unlock(&sg_file_writer_mutex);
+			fwt = dequeue(sg_file_writer_queue);
+		}
+		//if (fwt) {
 			cmd = fwt->_cmd;
 			file_ptr = fwt->_file_ptr;;
 			free(fwt);
@@ -1165,16 +1179,18 @@ static void file_writer(void * data)
 					break;
 			}
 			if (shutdown) break;
-		}
+		//}
+		/*
 		else {
 			sigemptyset(&r_set);
 			pthread_sigmask(SIG_BLOCK, &set, &o_set);
 			sigpending(&r_set);
 			if (sigismember(&r_set,SIGINT)) usleep(10);
-			/* sigwait seems to not perform very well in OSX no particular evidence to this */
+			// sigwait seems to not perform very well in OSX no particular evidence to this
 			//sigwait(&set,&sig);
 			EV_YIELD();
 		}
+		*/
 	}
 
 	return;
@@ -1389,8 +1405,11 @@ static void write_buffer_sync(EF_FILE * file_ptr)
 	fwt->_cmd = fw_write_req_evt;
 	fwt->_file_ptr = file_ptr;
 	enqueue(sg_file_writer_queue,fwt);
+	pthread_mutex_lock(&sg_file_writer_mutex);
+	pthread_cond_signal(&sg_file_writer_cond);
+	pthread_mutex_unlock(&sg_file_writer_mutex);
 	/* Wake up file writer thread, which is running file_writer. */
-	pthread_kill(sg_file_writer_tid,SIGINT);
+	//pthread_kill(sg_file_writer_tid,SIGINT);
 	return;
 }
 
@@ -1754,6 +1773,10 @@ void ef_init()
 	sg_file_writer_queue = create_ev_queue();
 	sg_slow_sync_queue = create_ev_queue();
 	setup_fd_slots();
+
+
+	pthread_mutex_init(&sg_file_writer_mutex, NULL);
+	pthread_cond_init(&sg_file_writer_cond, NULL);
 
 	atomic_thread_fence(memory_order_release);
 
