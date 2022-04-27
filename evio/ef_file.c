@@ -1099,6 +1099,7 @@ static void file_writer(void * data)
 			fwt = dequeue(sg_file_writer_queue);
 			if (fwt) {
 				pthread_mutex_unlock(&sg_file_writer_mutex);
+				break;
 			}
 			pthread_cond_wait(&sg_file_writer_cond, &sg_file_writer_mutex);
 			pthread_mutex_unlock(&sg_file_writer_mutex);
