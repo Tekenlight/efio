@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.2.0)
 
 project(efio)
 
+#IF(APPLE)
+#SET(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Build architectures for Mac OS X" FORCE)
+# set the value of CMAKE_OSX_ARCHITECTURES appropriately via -D commandline of cmake generation step
+#ENDIF(APPLE)
+
 set(CMAKE_C_STANDARD 11)
 #set(CMAKE_C_STANDARD 14)
 set(CMAKE_INSTALL_PREFIX /usr/local)
@@ -33,6 +38,20 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 set(CMAKE_C_COMPILER "/usr/bin/clang")
 set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
+
+#IF(APPLE)
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch arm64 -arch x86_64 ")
+#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -arch arm64 -arch x86_64 ")
+#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -arch arm64 -arch x86_64 ")
+#set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -arch arm64 -arch x86_64 ")
+#set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -arch arm64 -arch x86_64 ")
+
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -arch arm64 -arch x86_64 ")
+#set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -arch arm64 -arch x86_64 ")
+#set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -arch arm64 -arch x86_64 ")
+#set(CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} -arch arm64 -arch x86_64 ")
+#set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -arch arm64 -arch x86_64 ")
+#ENDIF (APPLE)
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address ")
 # set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address ")
