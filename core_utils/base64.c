@@ -39,6 +39,23 @@ static unsigned char decoding_table[256] = {
 
 static int mod_table[] = {0, 2, 1};
 
+/*
+ * ### unsigned char *base64_encode(const unsigned char *data, size_t input_length,
+                                size_t *output_length, int add_line_breaks)
+ *
+ * DESCRIPTION:
+ *              Encodes the given input binary data to base64 string format.
+ *              Memory needed for the returned string is allocated within and the calling functions is
+ *              expected to free the memory.
+ * INPUT:
+ *              const unsigned char *data : binary data
+ *              size_t input_length       : size of the binary data
+ *              size_t *output_length     : pointer to variable of type size_t where the length of the output
+ *                                          buffer will be written
+ * OUTPUT:
+ *              output_length
+ *              unsigned char *           : output buffer
+ */
 unsigned char *base64_encode(const unsigned char *data, size_t input_length,
 								size_t *output_length, int add_line_breaks)
 {
@@ -85,6 +102,22 @@ unsigned char *base64_encode(const unsigned char *data, size_t input_length,
 #define ISSPACE(c) (c==10 || c==13 || c==32 || c==9)
 #define BASE64_PAD '='
 
+/*
+ * ### unsigned char *base64_decode(const unsigned char *data, size_t input_length, size_t *output_length)
+ *
+ * DESCRIPTION:
+ *              Decodes the input base64 encoded string
+ *              Memory needed for the returned binary data is allocated within and the calling functions is
+ *              expected to free the memory.
+ * INPUT:
+ *              const unsigned char *data : string data
+ *              size_t input_length       : size of the string data
+ *              size_t *output_length     : pointer to variable of type size_t where the length of the output
+ *                                          buffer will be written
+ * OUTPUT:
+ *              output_length
+ *              unsigned char *           : output buffer
+ */
 unsigned char *base64_decode(const unsigned char *data, size_t input_length, size_t *output_length)
 {
 	int i = 0, out_index = 0, state = 0, ch = 0;
