@@ -44,3 +44,5 @@ A closed fd can be reused/reallocated by the library for some other file in the 
 
 The implementation is designed using non-blocking and lock-free techniques.
 
+
+Please refer [docuementation](https://github.com/Tekenlight/efio/wiki) for usage details.
