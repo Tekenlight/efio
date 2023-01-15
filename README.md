@@ -65,6 +65,14 @@ In a multi-threaded program, in certain scenarios, it is more efficient to use a
 
 This library provides a set of synchronization API
 
+## Thread pool
+
+Implementation of a minimalist thread pool in C.
+
+Uses ev_queue a lock-free queue, for the purpose of enqueueing tasks to the thread pool.
+The worker threads use mutexes to coordinate. Prototype implementation without mutex/lock performs poorly in terms of CPU usage due to    busy wait. Since the tasks can come at any instance spread over time, it is more efficient to use the lock based implementation as        against a lock free one.
+
+
 ------
 
 Please refer [docuementation](https://github.com/Tekenlight/efio/wiki) for usage details.
