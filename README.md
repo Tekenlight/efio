@@ -1,5 +1,6 @@
 # efio
-## Event driven file IO module ##
+
+## Event driven file IO module
 
 Two assumptions leading to the existing design of buffered IO in unix are
 1. **Disk access is several orders of magnitude slower than memory access milliseconds vs nano seconds.**
@@ -44,5 +45,26 @@ A closed fd can be reused/reallocated by the library for some other file in the 
 
 The implementation is designed using non-blocking and lock-free techniques.
 
+## Data structures
+
+With lock-free data structures the memory read-write operations in a multi-threaded environment become much more efficient. The module exposes the following data structures.
+
+It is attempted to maximize the use of lock-free/wait-free/obstruction-free algorithms as much as possible in the implementation of shared memory datastructures.
+
+### Queue
+
+
+### Chunked memory stream
+
+
+### Buffered stream
+
+## Sync artifacts
+
+In a multi-threaded program, in certain scenarios, it is more efficient to use a spin lock or an atomic lock with compare and swap operation rather than use a mutex.
+
+This library provides a set of synchronization API
+
+------
 
 Please refer [docuementation](https://github.com/Tekenlight/efio/wiki) for usage details.
