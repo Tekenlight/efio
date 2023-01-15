@@ -53,11 +53,17 @@ It is attempted to maximize the use of lock-free/wait-free/obstruction-free algo
 
 ### Queue
 
+Implements a generic lock-free queue, which enables wait-free enqueu and obstruction free dequeu operations
 
 ### Chunked memory stream
+A datastructure suitable for transmission of large streams of data like, video/audio buffer etc... It provides a mechanism by which the sending side can push parts of memory stream as chunks and the receiving side can dequeue the chunks and push the data over a socket.
 
+The sending and the receiving threads can operate concurrently on the data structure without the need to synchronize their operations.
 
 ### Buffered stream
+
+Exposes chunked_memory_stream as a a std::basic_streambuf
+The user has to implement a concrete class inheriting ev_buffered_stream. Further they have to expose the stream by classes inheriting std::ios, std::istream and std::ostream for management of the buffer, as input stream and as output stream respectively.
 
 ## Sync artifacts
 
@@ -71,7 +77,6 @@ Implementation of a minimalist thread pool in C.
 
 Uses ev_queue a lock-free queue, for the purpose of enqueueing tasks to the thread pool.
 The worker threads use mutexes to coordinate. Prototype implementation without mutex/lock performs poorly in terms of CPU usage due to    busy wait. Since the tasks can come at any instance spread over time, it is more efficient to use the lock based implementation as        against a lock free one.
-
 
 ------
 
