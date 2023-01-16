@@ -81,3 +81,4 @@ The worker threads use mutexes to coordinate. Prototype implementation without m
 ------
 
 Please refer [docuementation](https://github.com/Tekenlight/efio/wiki) for usage details.
+Other links: [evlua documentation](https://github.com/Tekenlight/.github/wiki)
