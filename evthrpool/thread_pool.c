@@ -94,6 +94,7 @@ static void * thread_loop(void *data)
 	//EV_DBGP("POOL = [%p]\n", pool);
 	pool->_threads[thr_index]._state = THREAD_FREE;
 	for (;;) {
+		qe = NULL;
 		s = atomic_load_explicit(&(pool->_shutdown),memory_order_acquire);
 		if (!s) {
 			int i = 0;
@@ -193,6 +194,7 @@ static void * thread_loop(void *data)
 					// If stop signal is coming out of a NULL task
 					//printf("%s:%d [%lx]\n", __FILE__, __LINE__, pthread_self());
 					free(qe);
+					qe = NULL;
 					break;
 				}
 			}
