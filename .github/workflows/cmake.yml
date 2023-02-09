@@ -27,7 +27,9 @@ jobs:
 
     - name: Build
       # Build your program with the given configuration
-      run: cmake --build ${{github.workspace}}/cmake-build --config ${{env.BUILD_TYPE}} && cmake --install cmake-build --prefix cmake-build/deploy
+      run: &&
+        cmake --build ${{github.workspace}}/cmake-build --config ${{env.BUILD_TYPE}}
+        cmake --install cmake-build --prefix cmake-build/deploy
 
     #- name: Test
     #  working-directory: ${{github.workspace}}/build
@@ -39,8 +41,7 @@ jobs:
     - name: Step 3 - Use the Upload Artifact GitHub Action
       uses: actions/upload-artifact@v3
       with:
-          name: buildoutput
-          path: |
-            cmake-build/deploy/
+          name: efio.build
+          path: cmake-build/deploy/
           
 
