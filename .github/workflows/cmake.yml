@@ -27,7 +27,7 @@ jobs:
 
     - name: Build
       # Build your program with the given configuration
-      run: cmake --build ${{github.workspace}}/cmake-build --config ${{env.BUILD_TYPE}}
+      run: cmake --build ${{github.workspace}}/cmake-build --config ${{env.BUILD_TYPE}} && cmake --install . --prefix cmake-build/deploy
 
     #- name: Test
     #  working-directory: ${{github.workspace}}/build
@@ -41,7 +41,6 @@ jobs:
       with:
           name: buildoutput
           path: |
-            cmake-build/lib/*
-            cmake-build/bin/*
+            cmake-build/deploy/
           
 
