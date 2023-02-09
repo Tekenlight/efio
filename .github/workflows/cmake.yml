@@ -41,7 +41,7 @@ jobs:
       with: |
           name: assets-for-download
           path:
-            cmake-build/lib
-            cmake-build/bin
+            cmake-build/lib/*
+            cmake-build/bin/*
           
 
