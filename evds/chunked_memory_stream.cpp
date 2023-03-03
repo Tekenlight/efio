@@ -144,8 +144,13 @@ size_t chunked_memory_stream::read(void *buffer, size_t bytes)
 		node_buffer = node_ptr->get_buffer();
 		memcpy(((char*)buffer + copied), (char*)node_buffer  , to_be_copied);
 
-		if (to_be_copied == node_ptr->get_buffer_len())
-			_buffer_list.pop_head();
+		if (to_be_copied == node_ptr->get_buffer_len()) {
+			memory_buffer_list::node * node_ptr = _buffer_list.pop_head();
+			delete node_ptr;
+		}
+		else if (to_be_copied > node_ptr->get_buffer_len()) {
+			exit(1);
+		}
 		else {
 			node_ptr->shift_buffer_position(to_be_copied);
 		}
@@ -248,6 +253,8 @@ void chunked_memory_stream::transfer(chunked_memory_stream * cms)
 	node_ptr = cms->_buffer_list.pop_head();
 	while (node_ptr) {
 		this->_buffer_list.add_node(node_ptr->get_buffer(), node_ptr->get_buffer_len());
+		node_ptr->set_buffer(NULL, 0);
+		delete node_ptr;
 		node_ptr = cms->_buffer_list.pop_head();
 	}
 }

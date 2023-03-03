@@ -57,8 +57,8 @@ void memory_buffer_list::node::shift_buffer_position(size_t bytes)
 
 memory_buffer_list::node::~node()
 {
-	//printf("[%p:%s%d] In node destructor\n", pthread_self(), __FILE__, __LINE__);
-	free(_buffer);
+	//printf("[%p:%s:%d] In node destructor _buffer = [%p]\n", pthread_self(), __FILE__, __LINE__, _buffer);
+	if (_buffer) free(_buffer);
 	_buffer = 0;
 	_size = 0;
 	_next = 0;
@@ -197,11 +197,11 @@ memory_buffer_list::node * memory_buffer_list::pop_head()
 
 memory_buffer_list::~memory_buffer_list()
 {
-	//printf("[%p:%s%d] in memory_buffer_list destructor\n", pthread_self(), __FILE__, __LINE__);
+	//printf("[%p:%s%:d] in memory_buffer_list destructor\n", pthread_self(), __FILE__, __LINE__);
 	node * p = 0, *q = 0;
 	p = (node*)std::atomic_load(&_head);
 	while (p != 0) {
-		//printf("[%p:%s%d] in loop\n", pthread_self(), __FILE__, __LINE__);
+		//printf("[%p:%s:%d] in loop\n", pthread_self(), __FILE__, __LINE__);
 		q = p->get_next();
 		delete p;
 		p = q;
