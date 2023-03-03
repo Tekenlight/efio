@@ -94,4 +94,8 @@ evthrpool/testsuite/Makefile
 evthrpool/testsuite/cmake_install.cmake
 build
 
+c++IO_classes.gif
+gtags
+tags
+
 CMakeFiles

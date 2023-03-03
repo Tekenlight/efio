@@ -82,8 +82,8 @@ int run_ev_globals_test()
 	}
 
 	printf("1 Number of exec times = [%d]\n", total);
-	//printf("2 Number of exec times = [%d]\n", total);
 	destroy_thread_pool(pool);
+	//printf("2 Number of exec times = [%d]\n", total);
 
 
 	//printf("3 Number of exec times = [%d]\n", total);

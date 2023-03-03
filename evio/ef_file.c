@@ -61,6 +61,8 @@ static thread_pool_type sg_disk_io_thr_pool = NULL;;
 static thread_pool_type sg_file_writer_pool = NULL;;
 static thread_pool_type sg_slow_sync_pool = NULL;;
 static ev_queue_type sg_file_writer_queue = NULL;;
+static pthread_mutex_t sg_file_writer_mutex;
+static pthread_cond_t sg_file_writer_cond;
 static ev_queue_type sg_slow_sync_queue = NULL;;
 static size_t sg_page_size = 0;
 static pthread_t sg_file_writer_tid;
@@ -937,7 +939,10 @@ static void ef_file_write(void * data)
 		fwt->_cmd = fw_write_cmpl_evt;
 		fwt->_file_ptr = file_ptr;
 		enqueue(sg_file_writer_queue,fwt);
-		pthread_kill(sg_file_writer_tid,SIGINT);
+		//pthread_kill(sg_file_writer_tid,SIGINT);
+		pthread_mutex_lock(&sg_file_writer_mutex);
+		pthread_cond_signal(&sg_file_writer_cond);
+		pthread_mutex_unlock(&sg_file_writer_mutex);
 	}
 
 	return;
@@ -1029,7 +1034,10 @@ static void sync_file_writes(int fd)
 		fwt->_cmd = fw_write_req_evt;
 		fwt->_file_ptr = file_ptr;
 		enqueue(sg_file_writer_queue,fwt);
-		pthread_kill(sg_file_writer_tid,SIGINT);
+		//pthread_kill(sg_file_writer_tid,SIGINT);
+		pthread_mutex_lock(&sg_file_writer_mutex);
+		pthread_cond_signal(&sg_file_writer_cond);
+		pthread_mutex_unlock(&sg_file_writer_mutex);
 	}
 
 	{
@@ -1086,95 +1094,95 @@ static void file_writer(void * data)
 
 	while (1) {
 		fwt = dequeue(sg_file_writer_queue);
-		if (fwt) {
-			cmd = fwt->_cmd;
-			file_ptr = fwt->_file_ptr;;
-			free(fwt);
-			fwt = NULL;
-			switch (cmd) {
-				case fw_write_cmpl_evt:
-					{
-						/* Have to free the list here. */
-						compl_count = 0L;
-						w_t = file_ptr->_action->_inp._write_inp._b_w_list;
-						while (w_t) {
-							/* Moved this increment to the end of the case condition.
-							 * This is to avoid any race condition that can occur with
-							 * another thread waiting for _write_cmpl_count to become
-							 * equal to the total req_count and then go and clear 
-							 * the _action memory. */
-
-							compl_count++;
-							ptr = w_t;
-							w_t = w_t->_next;
-							free(ptr->_buf);
-							free(ptr);
-							ptr = NULL;
-						}
-						file_ptr->_action->_inp._write_inp._b_w_list = NULL;
-					}
-					{
-						w_t = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
-						if (w_t) {
-							w_t->_next = NULL;
-							file_ptr->_action->_inp._write_inp._b_w_list = w_t;
-							file_ptr->_action->_inp._write_inp._write_req_count++;
-							ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
-							while (ptr) {
-								file_ptr->_action->_inp._write_inp._write_req_count++;
-								ptr->_next = NULL;
-								w_t->_next = ptr;
-								w_t = ptr;
-								ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
-							}
-							enqueue_task(sg_disk_io_thr_pool,ef_file_write,file_ptr);
-						}
-						w_t = NULL;
-					}
-					file_ptr->_action->_inp._write_inp._write_cmpl_count += compl_count;
-					atomic_thread_fence(memory_order_acq_rel);
-					break;
-				case fw_write_req_evt:
-					if (file_ptr->_action->_inp._write_inp._write_req_count !=
-												file_ptr->_action->_inp._write_inp._write_cmpl_count) {
-
-						break;
-					}
-					{
-						w_t = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
-						if (w_t) {
-							w_t->_next = NULL;
-							file_ptr->_action->_inp._write_inp._b_w_list = w_t;
-							file_ptr->_action->_inp._write_inp._write_req_count++;
-							ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
-							while (ptr) {
-								file_ptr->_action->_inp._write_inp._write_req_count++;
-								ptr->_next = NULL;
-								w_t->_next = ptr;
-								w_t = ptr;
-								ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
-							}
-							enqueue_task(sg_disk_io_thr_pool,ef_file_write,file_ptr);
-						}
-						w_t = NULL;
-					}
-					break;
-				case fw_shutdown_evt:
-				default:
-					shutdown = 1;
-					break;
+		while (!fwt) {
+			pthread_mutex_lock(&sg_file_writer_mutex);
+			fwt = dequeue(sg_file_writer_queue);
+			if (fwt) {
+				pthread_mutex_unlock(&sg_file_writer_mutex);
+				break;
 			}
-			if (shutdown) break;
+			pthread_cond_wait(&sg_file_writer_cond, &sg_file_writer_mutex);
+			pthread_mutex_unlock(&sg_file_writer_mutex);
+			fwt = dequeue(sg_file_writer_queue);
 		}
-		else {
-			sigemptyset(&r_set);
-			pthread_sigmask(SIG_BLOCK, &set, &o_set);
-			sigpending(&r_set);
-			if (sigismember(&r_set,SIGINT)) usleep(10);
-			/* sigwait seems to not perform very well in OSX no particular evidence to this */
-			//sigwait(&set,&sig);
-			EV_YIELD();
+		cmd = fwt->_cmd;
+		file_ptr = fwt->_file_ptr;;
+		free(fwt);
+		fwt = NULL;
+		switch (cmd) {
+			case fw_write_cmpl_evt:
+				{
+					/* Have to free the list here. */
+					compl_count = 0L;
+					w_t = file_ptr->_action->_inp._write_inp._b_w_list;
+					while (w_t) {
+						/* Moved this increment to the end of the case condition.
+						 * This is to avoid any race condition that can occur with
+						 * another thread waiting for _write_cmpl_count to become
+						 * equal to the total req_count and then go and clear 
+						 * the _action memory. */
+
+						compl_count++;
+						ptr = w_t;
+						w_t = w_t->_next;
+						free(ptr->_buf);
+						free(ptr);
+						ptr = NULL;
+					}
+					file_ptr->_action->_inp._write_inp._b_w_list = NULL;
+				}
+				{
+					w_t = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
+					if (w_t) {
+						w_t->_next = NULL;
+						file_ptr->_action->_inp._write_inp._b_w_list = w_t;
+						file_ptr->_action->_inp._write_inp._write_req_count++;
+						ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
+						while (ptr) {
+							file_ptr->_action->_inp._write_inp._write_req_count++;
+							ptr->_next = NULL;
+							w_t->_next = ptr;
+							w_t = ptr;
+							ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
+						}
+						enqueue_task(sg_disk_io_thr_pool,ef_file_write,file_ptr);
+					}
+					w_t = NULL;
+				}
+				file_ptr->_action->_inp._write_inp._write_cmpl_count += compl_count;
+				atomic_thread_fence(memory_order_acq_rel);
+				break;
+			case fw_write_req_evt:
+				if (file_ptr->_action->_inp._write_inp._write_req_count !=
+											file_ptr->_action->_inp._write_inp._write_cmpl_count) {
+
+					break;
+				}
+				{
+					w_t = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
+					if (w_t) {
+						w_t->_next = NULL;
+						file_ptr->_action->_inp._write_inp._b_w_list = w_t;
+						file_ptr->_action->_inp._write_inp._write_req_count++;
+						ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
+						while (ptr) {
+							file_ptr->_action->_inp._write_inp._write_req_count++;
+							ptr->_next = NULL;
+							w_t->_next = ptr;
+							w_t = ptr;
+							ptr = dequeue(file_ptr->_action->_inp._write_inp._w_queue);
+						}
+						enqueue_task(sg_disk_io_thr_pool,ef_file_write,file_ptr);
+					}
+					w_t = NULL;
+				}
+				break;
+			case fw_shutdown_evt:
+			default:
+				shutdown = 1;
+				break;
 		}
+		if (shutdown) break;
 	}
 
 	return;
@@ -1389,8 +1397,11 @@ static void write_buffer_sync(EF_FILE * file_ptr)
 	fwt->_cmd = fw_write_req_evt;
 	fwt->_file_ptr = file_ptr;
 	enqueue(sg_file_writer_queue,fwt);
+	pthread_mutex_lock(&sg_file_writer_mutex);
+	pthread_cond_signal(&sg_file_writer_cond);
+	pthread_mutex_unlock(&sg_file_writer_mutex);
 	/* Wake up file writer thread, which is running file_writer. */
-	pthread_kill(sg_file_writer_tid,SIGINT);
+	//pthread_kill(sg_file_writer_tid,SIGINT);
 	return;
 }
 
@@ -1754,6 +1765,10 @@ void ef_init()
 	sg_file_writer_queue = create_ev_queue();
 	sg_slow_sync_queue = create_ev_queue();
 	setup_fd_slots();
+
+
+	pthread_mutex_init(&sg_file_writer_mutex, NULL);
+	pthread_cond_init(&sg_file_writer_cond, NULL);
 
 	atomic_thread_fence(memory_order_release);
 

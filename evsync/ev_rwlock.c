@@ -39,16 +39,16 @@ int ev_rwlock_rdlock(ev_rwlock_type s)
 int ev_rwlock_wrlock(ev_rwlock_type s)
 {
 	int wr = 0;
-	while (!atomic_compare_exchange_strong(&s->wr_lock, &wr, -1)) {
+	while (!atomic_compare_exchange_strong(&(s->wr_lock), &wr, -1)) {
 		wr = 0;
 		EV_YIELD();
 		continue;
 	}
 	/* Now no one else can make it 0 */
-	int rd = atomic_load(&s->rd_lock);
+	int rd = atomic_load(&(s->rd_lock));
 	while (rd) {
 		EV_YIELD();
-		rd = atomic_load(&s->rd_lock);
+		rd = atomic_load(&(s->rd_lock));
 	}
 	atomic_store(&(s->wr_lock), 1);
 	return 0;

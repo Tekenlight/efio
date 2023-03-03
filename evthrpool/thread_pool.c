@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <ev_include.h>
 #include <unistd.h>
@@ -9,6 +10,10 @@
 #include <stdbool.h>
 #include <ev_queue.h>
 #include <assert.h>
+
+#if defined SEMAPHORE_BASED
+#include <semaphore.h>
+#endif
 
 struct task_s {
 	task_func_type		_task_function;
@@ -41,6 +46,14 @@ struct thread_pool_s {
 	int					_min_sleep_usec;
 	int					_max_sleep_usec;
 	int					_alwd_busy_waits;
+#if defined MUTEX_BASED
+	pthread_cond_t		_cond;
+	pthread_mutex_t		_mutex;
+#elif defined SEMAPHORE_BASED
+	sem_t*				_semaphore;
+#else
+#error
+#endif
 };
 
 struct thr_free_s {
@@ -71,36 +84,73 @@ static void * thread_loop(void *data)
 	int						slept_count = 0;
 	int						sleeping_time = 0;
 	int						slept_time = 0;
+	int						ret = 0;
 
 	pool = ((struct thr_inp_data_s *)data)->_pool;
 	thr_index = ((struct thr_inp_data_s *)data)->_thr_index;
 	free(data);
 	data = NULL; //Seems to be giving problem in Ubuntu
 
+	//EV_DBGP("POOL = [%p]\n", pool);
 	pool->_threads[thr_index]._state = THREAD_FREE;
 	for (;;) {
+		qe = NULL;
 		s = atomic_load_explicit(&(pool->_shutdown),memory_order_acquire);
-		//if (s) break;
-		qe = dequeue(pool->_task_queue);
-		if (!qe) {
+		if (!s) {
 			int i = 0;
 			while (s == 0) {
-				pool->_threads[thr_index]._subscribed = true;
-				sleeping_time = (i>pool->_alwd_busy_waits)?i*pool->_min_sleep_usec:0;
-				slept_time += sleeping_time;
-				slept_count++;
-				if (pool->_threads[thr_index]._subscribed) {
-					if (i>pool->_alwd_busy_waits) usleep(sleeping_time);
-					else EV_YIELD();
-				}
-				pool->_threads[thr_index]._subscribed = false;
-
 				qe = dequeue(pool->_task_queue);
 				if (qe) {
 					break;
 				}
+
+				ret = 0;
+#if defined MUTEX_BASED
+				ret = pthread_mutex_lock(&(pool->_mutex));
+				if (ret) {
+					EV_DBGP("POOL COND = [%p]\n", &(pool->_cond));
+					EV_ABORT("%s\n", strerror(ret));
+				}
+
 				s = atomic_load_explicit(&(pool->_shutdown),memory_order_acquire);
-				if ((sleeping_time + pool->_min_sleep_usec)<pool->_max_sleep_usec) i++;
+				if (s) {
+					pthread_mutex_unlock(&(pool->_mutex));
+					break;
+				}
+				qe = dequeue(pool->_task_queue);
+				if (qe) {
+					pthread_mutex_unlock(&(pool->_mutex));
+					break;
+				}
+#endif
+
+				ret = 0;
+#if defined MUTEX_BASED
+				ret = pthread_cond_wait(&(pool->_cond), &(pool->_mutex));
+				if (ret) {
+					EV_DBGP("POOL COND = [%p] \n", &(pool->_cond));
+					EV_DBGP("%s\n", strerror(ret));
+					EV_ABORT("%s\n", strerror(ret));
+				}
+				pthread_mutex_unlock(&(pool->_mutex));
+#elif defined SEMAPHORE_BASED
+				ret = sem_wait(pool->_semaphore);
+				if (ret) {
+					EV_DBGP("SEMAPHORE = [%p] \n", &(pool->_semaphore));
+					EV_DBGP("%s\n", strerror(errno));
+					EV_ABORT("%s\n", strerror(errno));
+				}
+#else
+#error
+#endif
+				qe = dequeue(pool->_task_queue);
+				if (qe) {
+					break;
+				}
+
+				//EV_DBGP("WAITING COMPLETE FOR COND on [%p]\n", pool);fflush(stdout);
+				s = atomic_load_explicit(&(pool->_shutdown),memory_order_acquire);
+				//if ((sleeping_time + pool->_min_sleep_usec)<pool->_max_sleep_usec) i++;
 			}
 		}
 		if (s) {
@@ -144,6 +194,7 @@ static void * thread_loop(void *data)
 					// If stop signal is coming out of a NULL task
 					//printf("%s:%d [%lx]\n", __FILE__, __LINE__, pthread_self());
 					free(qe);
+					qe = NULL;
 					break;
 				}
 			}
@@ -172,23 +223,43 @@ static void * thread_loop(void *data)
 
 static void wake_all_threads(struct thread_pool_s *pool, int immediate)
 {
+	//EV_DBGP("WAKING ALL THREADS [%d] on [%p]\n", pool->_num_threads, pool);fflush(stdout);
 	struct task_s * qe = NULL;
 	for (int i = 0; i < pool->_num_threads; i++) {
 		qe = malloc(sizeof(struct task_s));
 		qe->_task_function = NULL;
 		qe->_arg = NULL;
 		enqueue(pool->_task_queue,qe);
+#if defined SEMAPHORE_BASED
+		sem_post(pool->_semaphore);
+#endif
 	}
+#if defined MUTEX_BASED
+	pthread_mutex_lock(&(pool->_mutex));
+	pthread_cond_broadcast(&(pool->_cond));
+	pthread_mutex_unlock(&(pool->_mutex));
+#endif
 	return;
 }
 
 static void wake_any_one_thread(struct thread_pool_s *pool)
 {
+	//EV_DBGP("SIGNALLING CONDITION on [%p]\n", pool);fflush(stdout);
+#if defined MUTEX_BASED
+	pthread_mutex_lock(&(pool->_mutex));
+	pthread_cond_signal(&(pool->_cond));
+	pthread_mutex_unlock(&(pool->_mutex));
+#elif defined SEMAPHORE_BASED
+	sem_post(pool->_semaphore);
+#else
+#error
+#endif
 	return;
 }
 
 struct thread_pool_s * create_thread_pool(int num_threads)
 {
+	//EV_DBGP("CREATING A THREAD POOL OF [%d] THREADS\n", num_threads);fflush(stdout);
 	struct thread_pool_s * pool =NULL;
 	pthread_attr_t attr;
 
@@ -202,6 +273,8 @@ struct thread_pool_s * create_thread_pool(int num_threads)
 	}
 
 	pool = malloc(sizeof(struct thread_pool_s));
+	//EV_DBGP("POOL = [%p]\n", pool);fflush(stdout);
+	memset(pool, 0, sizeof(struct thread_pool_s));
 
 	pool->_threads = malloc(num_threads*sizeof(struct thr_s));
 	memset(pool->_threads, 0, num_threads*sizeof(struct thr_s));
@@ -214,6 +287,27 @@ struct thread_pool_s * create_thread_pool(int num_threads)
 	pool->_min_sleep_usec = MIN_SLEEP_USEC;;
     pool->_max_sleep_usec = MAX_SLEEP_USEC;
     pool->_alwd_busy_waits = ALWD_BUSY_WAITS;
+	//EV_DBGP("POOL = [%p]\n", pool);
+	int ret = 0;
+#if defined MUTEX_BASED
+	ret = pthread_cond_init(&(pool->_cond), NULL);
+	pthread_mutex_init(&(pool->_mutex), NULL);
+	if (ret) {
+		EV_ABORT("%s\n", strerror(ret));
+	}
+#elif defined SEMAPHORE_BASED
+	char buf[L_tmpnam + 1];
+	memset(buf, 0, (L_tmpnam+1));
+	strcpy(buf, "/tmp/tmp.XXXXXX");
+	char * tmp_name = tmpnam(buf);
+	pool->_semaphore = sem_open(tmp_name, O_CREAT, S_IRUSR|S_IWUSR, 0);
+	if (pool->_semaphore == SEM_FAILED) {
+		EV_ABORT("%s\n", strerror(errno));
+	}
+#else
+#error
+#endif
+	//EV_DBGP("POOL COND = [%p] ret=[%d]\n", &(pool->_cond), ret); fflush(stdout);
 	{
 		for (int i=0; i < num_threads;i++) {
 			struct thr_inp_data_s * data = malloc(sizeof(struct thr_inp_data_s));
@@ -231,7 +325,9 @@ struct thread_pool_s * create_thread_pool(int num_threads)
 		}
 	}
 
+#if defined MUTEX_BASED
 	pthread_attr_destroy(&attr);
+#endif
 
 	return pool;
 }
@@ -241,8 +337,15 @@ static void free_thread_pool(struct thread_pool_s *pool)
 	struct task_s * qe = NULL;
 
     free(pool->_threads);
+#if defined MUTEX_BASED
 	destroy_ev_queue(pool->_task_queue);
 	destroy_ev_queue(pool->_free_thr_queue);
+	pthread_cond_destroy(&(pool->_cond));
+#elif defined SEMAPHORE_BASED
+	sem_close(pool->_semaphore);
+#else
+#error
+#endif
 
 	return;
 }
@@ -286,16 +389,6 @@ void enqueue_task_function (struct thread_pool_s *pool, task_func_with_return_t 
 	tdp->_task_func = func;
 	tdp->_on_complete = notification_func;
 
-	/*
-	struct task_s * qe = NULL;
-	qe = malloc(sizeof(struct task_s));
-	qe->_task_function = envelope_function;
-	qe->_arg = tdp;
-	enqueue(pool->_task_queue,qe);
-
-	atomic_fetch_add(&pool->_cond_count,1);
-	wake_any_one_thread(pool);
-	*/
 	enqueue_task(pool, envelope_function, tdp);
 }
 
@@ -327,8 +420,8 @@ int destroy_thread_pool(struct thread_pool_s *pool)
 		return -1;
 	}
 
-	wake_all_threads(pool,0);
 	atomic_store_explicit(&(pool->_shutdown),1,memory_order_release);
+	wake_all_threads(pool,0);
 
 	for (int i=0;i<pool->_num_threads ; i++) {
 		if (pthread_join(pool->_threads[i]._t,NULL)) {

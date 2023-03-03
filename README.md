@@ -1,5 +1,6 @@
 # efio
-## Event driven file IO module ##
+
+## Event driven file IO module
 
 Two assumptions leading to the existing design of buffered IO in unix are
 1. **Disk access is several orders of magnitude slower than memory access milliseconds vs nano seconds.**
@@ -44,3 +45,40 @@ A closed fd can be reused/reallocated by the library for some other file in the 
 
 The implementation is designed using non-blocking and lock-free techniques.
 
+## Data structures
+
+With lock-free data structures the memory read-write operations in a multi-threaded environment become much more efficient. The module exposes the following data structures.
+
+It is attempted to maximize the use of lock-free/wait-free/obstruction-free algorithms as much as possible in the implementation of shared memory datastructures.
+
+### Queue
+
+Implements a generic lock-free queue, which enables wait-free enqueu and obstruction free dequeu operations
+
+### Chunked memory stream
+A datastructure suitable for transmission of large streams of data like, video/audio buffer etc... It provides a mechanism by which the sending side can push parts of memory stream as chunks and the receiving side can dequeue the chunks and push the data over a socket.
+
+The sending and the receiving threads can operate concurrently on the data structure without the need to synchronize their operations.
+
+### Buffered stream
+
+Exposes chunked_memory_stream as a a std::basic_streambuf
+The user has to implement a concrete class inheriting ev_buffered_stream. Further they have to expose the stream by classes inheriting std::ios, std::istream and std::ostream for management of the buffer, as input stream and as output stream respectively.
+
+## Sync artifacts
+
+In a multi-threaded program, in certain scenarios, it is more efficient to use a spin lock or an atomic lock with compare and swap operation rather than use a mutex.
+
+This library provides a set of synchronization API
+
+## Thread pool
+
+Implementation of a minimalist thread pool in C.
+
+Uses ev_queue a lock-free queue, for the purpose of enqueueing tasks to the thread pool.
+The worker threads use mutexes to coordinate. Prototype implementation without mutex/lock performs poorly in terms of CPU usage due to    busy wait. Since the tasks can come at any instance spread over time, it is more efficient to use the lock based implementation as        against a lock free one.
+
+------
+
+Please refer [docuementation](https://github.com/Tekenlight/efio/wiki) for usage details.<br/>
+Other links: [evlua documentation](https://github.com/Tekenlight/.github/wiki)

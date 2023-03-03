@@ -7,7 +7,7 @@
 #include <pthread.h>
 
 #define MIN_SLEEP_USEC 10
-#define MAX_SLEEP_USEC 200
+#define MAX_SLEEP_USEC 20000
 #define ALWD_BUSY_WAITS 5
 
 typedef struct thread_pool_s thread_pool_s_type;

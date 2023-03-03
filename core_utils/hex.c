@@ -33,6 +33,22 @@ static unsigned char decoding_table[256] = {
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 };
 
+/*
+ * ### unsigned char *hex_encode(const unsigned char *data, size_t input_length, size_t *output_length)
+ *
+ * DESCRIPTION:
+ *              Encodes the given input binary data to HEX string format.
+ *              Memory needed for the returned string is allocated within and the calling functions is
+ *              expected to free the memory.
+ * INPUT:
+ *              const unsigned char *data : binary data
+ *              size_t input_length       : size of the binary data
+ *              size_t *output_length     : pointer to variable of type size_t where the length of the output
+ *                                          buffer will be written
+ * OUTPUT:
+ *              output_length
+ *              unsigned char *           : output buffer
+ */
 unsigned char *hex_encode(const unsigned char *data, size_t input_length, size_t *output_length)
 {
 	int i = 0, j = 0;
@@ -50,6 +66,22 @@ unsigned char *hex_encode(const unsigned char *data, size_t input_length, size_t
 	return encoded_data;
 }
 
+/*
+ * ### unsigned char *hex_decode(const unsigned char *data, size_t input_length, size_t *output_length)
+ *
+ * DESCRIPTION:
+ *              Decodes the input hex string
+ *              Memory needed for the returned binary data is allocated within and the calling functions is
+ *              expected to free the memory.
+ * INPUT:
+ *              const unsigned char *data : string data
+ *              size_t input_length       : size of the string data
+ *              size_t *output_length     : pointer to variable of type size_t where the length of the output
+ *                                          buffer will be written
+ * OUTPUT:
+ *              output_length
+ *              unsigned char *           : output buffer
+ */
 unsigned char *hex_decode(const unsigned char *data, size_t input_length, size_t *output_length)
 {
 	int i = 0, j = 0;
