@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <pthread.h>
 
 #include <ev_include.h>
 #include <unistd.h>
@@ -8,6 +9,8 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ev_queue.h>
+
+extern int pthread_yield(void);
 
 
 void task_func(void * data)
