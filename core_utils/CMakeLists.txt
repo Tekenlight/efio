@@ -20,9 +20,11 @@ if(WIN32)
     endif()    
 endif(WIN32)
 
-#add_library( "${LIBNAME}" ${LIB_MODE} ${SRCS} )
 add_library( "${LIBNAME}" SHARED ${SRCS} )
-#add_library( "${EV_LIBNAME}" ALIAS "${LIBNAME}")
+find_library(LIBZ NAMES z REQUIRED)
+
+target_link_libraries( "${LIBNAME}" ${LIBZ})
+
 set_target_properties( "${LIBNAME}"
     PROPERTIES
     VERSION ${SHARED_LIBRARY_VERSION} SOVERSION ${SHARED_LIBRARY_VERSION}
