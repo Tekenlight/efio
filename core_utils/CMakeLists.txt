@@ -22,6 +22,7 @@ endif(WIN32)
 
 add_library( "${LIBNAME}" SHARED ${SRCS} )
 find_library(LIBZ NAMES z REQUIRED)
+message(STATUS "LIBZ ${LIBZ}")
 
 target_link_libraries( "${LIBNAME}" ${LIBZ})
 
@@ -39,6 +40,11 @@ target_include_directories( "${LIBNAME}"
         $<INSTALL_INTERFACE:include>
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
     )
+
+#get_target_property(CORE_UTILS_INCLUDES ${LIBNAME} INCLUDE_DIRECTORIES)
+#message(STATUS "INCLUDE DIRECTORIES OF ${LIBNAME} ${CORE_UTILS_INCLUDES}")
+
+
 target_compile_definitions("${LIBNAME}" PUBLIC ${LIB_MODE_DEFINITIONS})
 
 POCO_INSTALL("${LIBNAME}")
