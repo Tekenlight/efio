@@ -147,7 +147,7 @@ static void test_main(CuTest *tc)
 	pthread_create(&t5, NULL, thr, &inp5);
 	*/
 
-	pthread_join(t0,&retptr);
+	//pthread_join(t0,&retptr);
 	pthread_join(t1,&retptr);
 	pthread_join(t2,&retptr);
 	pthread_join(t3,&retptr);

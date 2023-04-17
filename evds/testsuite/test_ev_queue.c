@@ -137,7 +137,8 @@ static int run_ev_test()
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);
 	printf("Count = %d\n",suite->count);
-	return suite->failCount;
+	int ret = suite->failCount;
+	return ret;
 }
 
 int main()
