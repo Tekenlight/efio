@@ -9,7 +9,7 @@ project(efio)
 
 set(CMAKE_C_STANDARD 11)
 #set(CMAKE_C_STANDARD 14)
-set(CMAKE_INSTALL_PREFIX /usr/local)
+#set(CMAKE_INSTALL_PREFIX /usr/local)
 
 file(STRINGS "${PROJECT_SOURCE_DIR}/libversion" SHARED_LIBRARY_VERSION)
 
