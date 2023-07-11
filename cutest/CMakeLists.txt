@@ -30,7 +30,7 @@ set_target_properties( "${LIBNAME}"
     DEFINE_SYMBOL evglobals_EXPORTS
     )
 
-target_link_libraries( "${LIBNAME}" ${SYSLIBS} ${LIBEV_LIBRARY})
+target_link_libraries( "${LIBNAME}" ${SYSLIBS} )
 target_include_directories( "${LIBNAME}"
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

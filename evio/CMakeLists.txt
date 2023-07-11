@@ -30,7 +30,7 @@ set_target_properties( "${LIBNAME}"
     DEFINE_SYMBOL evio_EXPORTS
     )
 
-target_link_libraries( "${LIBNAME}" evglobals evsync evds evthrpool ${SYSLIBS} ${LIBEV_LIBRARY})
+target_link_libraries( "${LIBNAME}" evglobals evsync evds evthrpool ${SYSLIBS} )
 target_include_directories( "${LIBNAME}"
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

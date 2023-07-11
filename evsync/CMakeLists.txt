@@ -30,7 +30,7 @@ set_target_properties( "${LIBNAME}"
     DEFINE_SYMBOL evsync_EXPORTS
     )
 
-target_link_libraries( "${LIBNAME}" evglobals ${SYSLIBS} ${LIBEV_LIBRARY})
+target_link_libraries( "${LIBNAME}" evglobals ${SYSLIBS} )
 target_include_directories( "${LIBNAME}"
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
