@@ -21,7 +21,13 @@ if(WIN32)
 endif(WIN32)
 
 add_library( "${LIBNAME}" SHARED ${SRCS} )
-find_library(LIBZ NAMES z REQUIRED)
+if (DEFINED LIBZ_BUILD_PATH)
+	target_include_directories( "${LIBNAME}" PUBLIC "${LIBZ_BUILD_PATH}/usr/local/include")
+	find_library(LIBZ NAMES "libz.a" NO_DEFAULT_PATH PATHS "${LIBZ_BUILD_PATH}/usr/local/lib" REQUIRED)
+else(DEFINED LIBZ_BUILD_PATH)
+	find_library(LIBZ NAMES z REQUIRED)
+endif(DEFINED LIBZ_BUILD_PATH)
+
 message(STATUS "LIBZ ${LIBZ}")
 
 target_link_libraries( "${LIBNAME}" ${LIBZ})
