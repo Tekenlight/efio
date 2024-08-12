@@ -70,7 +70,8 @@ ssize_t chunked_memory_stream::copy(size_t start_pos, void *buffer, size_t bytes
 	}
 
 	// Start position is beyond the total buffer.
-	if (!node_ptr) return -1;
+	//if (!node_ptr) return -1;
+	if (!node_ptr) return copied;
 
 	// copy as much data required.
 	while (node_ptr && copied < bytes) {
