@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <base64.h>
+
 void free_binary_data(unsigned char *data);
 size_t binary_data_len(unsigned char *data);
 void * alloc_binary_data_memory(size_t size);
@@ -98,6 +100,22 @@ unsigned char *base64_encode(const unsigned char *data, size_t input_length,
 
 	return encoded_data;
 }
+ 
+unsigned char *url_base64_encode(const unsigned char *data, size_t input_length,
+								size_t *output_length, int add_line_breaks)
+{
+
+    unsigned char * encoded_data = base64_encode(data, input_length, output_length, add_line_breaks);
+    for (int i=0; i<*output_length; i++) {
+        if (*(encoded_data+i) == '+')
+            *(encoded_data+i) = '-';
+        else if(*(encoded_data+i) == '/')
+            *(encoded_data+i) = '_';
+    }
+
+    return encoded_data;
+}
+
 
 #define ISSPACE(c) (c==10 || c==13 || c==32 || c==9)
 #define BASE64_PAD '='
@@ -272,6 +290,26 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 	}
 
 	return (decoded_data);
+}
+
+unsigned char *url_base64_decode(const unsigned char *data, size_t input_length, size_t *output_length)
+{
+    unsigned char * temp_data = malloc(input_length + 1);
+    memset(temp_data, 0, input_length + 1);
+    memcpy(temp_data, data, input_length);
+
+    for (int i=0; i<input_length; i++) {
+        if (*(temp_data+i) == '-')
+            *(temp_data+i) = '+';
+        else if (*(temp_data+i) == '_')
+            *(temp_data+i) = '/';
+    }
+
+    unsigned char * out =  base64_decode(temp_data, input_length, output_length);
+
+    free(temp_data);
+
+    return out;
 }
 
 #if 0
