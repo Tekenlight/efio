@@ -100,7 +100,7 @@ unsigned char *base64_encode(const unsigned char *data, size_t input_length,
 
 	return encoded_data;
 }
- 
+
 unsigned char *url_base64_encode(const unsigned char *data, size_t input_length,
 								size_t *output_length, int add_line_breaks)
 {
@@ -272,7 +272,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 				* zeros.  If we don't check them, they become a
 				* subliminal channel.
 				*/
-				if (decoded_data && decoded_data[out_index] != 0) { 
+				if (decoded_data && decoded_data[out_index] != 0) {
 					free_binary_data(decoded_data);
 					return NULL;
 				}
@@ -337,7 +337,7 @@ int main()
 int main()
 {
 
-    const unsigned char data [] = {0xFF, 0xA1, 0x12, 0xBE }; 
+    const unsigned char data [] = {0xFF, 0xA1, 0x12, 0xBE };
     size_t input_size = strlen((const char*)data);
     printf("Input size: %ld \n",input_size);
     unsigned char * encoded_data = base64_encode(data, input_size, &input_size, 1);
