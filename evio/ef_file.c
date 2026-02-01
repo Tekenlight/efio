@@ -1778,9 +1778,11 @@ void ef_init()
 	 * 2 threads for carrying out asynchrnous, read, open and close
 	 * operations.
 	 */
-	if (!sg_disk_io_thr_pool) sg_disk_io_thr_pool = create_thread_pool(2);
-	sg_file_writer_pool = create_thread_pool(1);
-	sg_slow_sync_pool = create_thread_pool(1);
+	if (!sg_disk_io_thr_pool) {
+        sg_disk_io_thr_pool = create_thread_pool(2);
+    }
+	if (!sg_file_writer_pool) sg_file_writer_pool = create_thread_pool(1);
+	if (!sg_slow_sync_pool) sg_slow_sync_pool = create_thread_pool(1);
 
 	enqueue_task(sg_file_writer_pool,file_writer,NULL);
 	enqueue_task(sg_slow_sync_pool,slow_sync,NULL);
@@ -1792,9 +1794,13 @@ void ef_init()
 
 void ef_set_thrpool(thread_pool_type thr_pool)
 {
+    /*
 	if (sg_thr_pool_init_done) return;
 	sg_thr_pool_init_done = 1;
 	if (sg_disk_io_thr_pool) destroy_thread_pool(sg_disk_io_thr_pool);
+	sg_disk_io_thr_pool = thr_pool;
+    */
+	sg_thr_pool_init_done = 1;
 	sg_disk_io_thr_pool = thr_pool;
 
 	return;
