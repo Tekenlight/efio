@@ -1779,8 +1779,8 @@ void ef_init()
 	 * operations.
 	 */
 	if (!sg_disk_io_thr_pool) sg_disk_io_thr_pool = create_thread_pool(2);
-	sg_file_writer_pool = create_thread_pool(1);
-	sg_slow_sync_pool = create_thread_pool(1);
+	if (!sg_file_writer_pool) sg_file_writer_pool = create_thread_pool(1);
+	if (!sg_slow_sync_pool) sg_slow_sync_pool = create_thread_pool(1);
 
 	enqueue_task(sg_file_writer_pool,file_writer,NULL);
 	enqueue_task(sg_slow_sync_pool,slow_sync,NULL);
