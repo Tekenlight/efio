@@ -1792,13 +1792,9 @@ void ef_init()
 
 void ef_set_thrpool(thread_pool_type thr_pool)
 {
-    /*
 	if (sg_thr_pool_init_done) return;
 	sg_thr_pool_init_done = 1;
 	if (sg_disk_io_thr_pool) destroy_thread_pool(sg_disk_io_thr_pool);
-	sg_disk_io_thr_pool = thr_pool;
-    */
-	sg_thr_pool_init_done = 1;
 	sg_disk_io_thr_pool = thr_pool;
 
 	return;
