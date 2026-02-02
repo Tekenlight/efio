@@ -1778,9 +1778,7 @@ void ef_init()
 	 * 2 threads for carrying out asynchrnous, read, open and close
 	 * operations.
 	 */
-	if (!sg_disk_io_thr_pool) {
-        sg_disk_io_thr_pool = create_thread_pool(2);
-    }
+	if (!sg_disk_io_thr_pool) sg_disk_io_thr_pool = create_thread_pool(2);
 	if (!sg_file_writer_pool) sg_file_writer_pool = create_thread_pool(1);
 	if (!sg_slow_sync_pool) sg_slow_sync_pool = create_thread_pool(1);
 
