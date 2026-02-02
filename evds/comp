@@ -1,6 +1,0 @@
-cc -c ev_queue.c -o ev_queue.o -DNEVER -DEF_NO_AUTOMATIC_LIBS -DPOCO_ENABLE_CPP11 -DPOCO_ENABLE_CPP14 -Devds_EXPORTS \
-    -D_GNU_SOURCE -Wno-format-zero-length -DEV_DEBUG -O2 -g -DNDEBUG -std=gnu11 -fPIC \
-    -I /home/ubuntu/platform/efio/evds -I /home/ubuntu/platform/efio/evglobals -I /home/ubuntu/platform/efio/evsync
-    
-
-cc -fPIC -O2 -g -DNDEBUG -Wl,-soname,libevds.so.01 -o ev_queue ev_queue.o
