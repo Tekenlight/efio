@@ -10,8 +10,6 @@
 #include <assert.h>
 #include <unistd.h>
 
-#include "ev_queue_alloc.h"
-
 /* Practial to do things
  *
  * Practical recommendation (minimal disruption)
@@ -28,8 +26,6 @@
 
 #define EVQ_QUARANTINE_MAX 64
 
-static pthread_mutex_t qlock = PTHREAD_MUTEX_INITIALIZER;
-
 struct ev_queue_s {
     atomic_uintptr_t    head;
     atomic_uintptr_t    tail;
@@ -40,7 +36,6 @@ struct ev_queue_s {
     _Atomic int d_count;
 
     pthread_mutex_t q_mtx1;
-    pthread_mutex_t q_mtx2;
     struct __s* quarantine[EVQ_QUARANTINE_MAX];
     size_t q_len;     // number of items in ring
     size_t q_head_i;  // ring head index
@@ -92,7 +87,6 @@ ev_queue_type create_ev_queue()
     atomic_init(&newptr->d_count, 0);
 
     pthread_mutex_init(&newptr->q_mtx1, NULL);
-    pthread_mutex_init(&newptr->q_mtx2, NULL);
     newptr->q_len = 0;
     newptr->q_head_i = 0;
 
@@ -274,12 +268,6 @@ void * dequeue(struct ev_queue_s * q_ptr)
         EV_YIELD();
     } while (true);
 
-    /* Check sanity of only one consumer BEGIN { */
-    if (pthread_mutex_trylock(&q_ptr->q_mtx2) != 0) {
-        abort(); // or return NULL; but abort is better during debug
-    }
-    /* Check sanity of only one consumer END } */
-
     new_h = old_h;
     next = atomic_load_explicit(&(((struct __s *)(new_h))->next),memory_order_acquire);
 
@@ -328,10 +316,6 @@ void * dequeue(struct ev_queue_s * q_ptr)
         }
     }
 
-    /* Check sanity of only one consumer BEGIN { */
-    pthread_mutex_unlock(&q_ptr->q_mtx2);
-    /* Check sanity of only one consumer END } */
-
     //EV_DBGP("Execution counter = [%d] q_ptr=[%p]\n", c_tex, q_ptr);
     //EV_DBGP("Tail = [%X] HEAD = [%X]\n", atomic_load(&q_ptr->tail), atomic_load(&q_ptr->head));
     atomic_thread_fence(memory_order_acq_rel);
@@ -340,37 +324,9 @@ void * dequeue(struct ev_queue_s * q_ptr)
     assert(old_h != 0);
     atomic_fetch_add(&(q_ptr->d_count), 1);
 
-    /* Detector code BEGIN { */
-    {
-    struct __s *h = (struct __s*)old_h;
-
-    /* Claim exclusive ownership before touching / freeing */
-    int expected = 0;
-    if (!atomic_compare_exchange_strong_explicit(&h->inflight, &expected, 1,
-                                                memory_order_acq_rel,
-                                                memory_order_acquire)) {
-        EV_DBGP("EVQ DETECT: consumer failed to claim inflight node=%p id=%lu got=%d\n",
-                h, (unsigned long)atomic_load(&h->id), expected);
-        abort();
-    }
-
-    /* After claim, magic must be LIVE */
-    uint64_t m = atomic_load_explicit(&h->magic, memory_order_acquire);
-    if (m != EVQ_MAGIC_LIVE) {
-        EV_DBGP("EVQ DETECT: consumer claimed non-live node=%p id=%lu magic=%lx\n",
-                h, (unsigned long)atomic_load(&h->id), (unsigned long)m);
-        abort();
-    }
-
-
-    }
-    /* Detector code END } */
-
-
 
     // Now old_h has what we want.
     data = ((struct __s *)old_h)->data;
-    /* Temporary comment out BEGIN {
     if (atomic_load(&((struct __s*)old_h)->inflight)) {
         EV_DBGP("BUG: freeing node still inflight: %p\n", (void*)old_h);
         EV_DBGP("ecount = [%d] dcount=[%d]\n", atomic_load(&(q_ptr->e_count)), atomic_load(&(q_ptr->d_count)));
@@ -384,14 +340,12 @@ void * dequeue(struct ev_queue_s * q_ptr)
                 (struct __s*)old_h, ((struct __s*)old_h)->id, m, q_ptr);
         abort();
     }
-    Temporary comment out END } */
 
     atomic_store(&(((struct __s*)old_h)->magic), EVQ_MAGIC_FREED);
     memset((struct __s *)old_h, 0xA5, sizeof(struct __s));
 
 
-    //free(((struct __s *)old_h));
-    ev_queue_node_free(((struct __s *)old_h), sizeof(struct __s));
+    free(((struct __s *)old_h));
     //evq_retire_node(q_ptr, (struct __s*)old_h);
 
     return data;
@@ -415,8 +369,7 @@ void enqueue(struct ev_queue_s * q_ptr,void * data)
     uintptr_t        zero_head = 0;
     bool            flg = false;
 
-    //ptr = (struct __s*)malloc(sizeof(struct __s));
-    ptr = (struct __s*)ev_queue_node_alloc(sizeof(struct __s));
+    ptr = (struct __s*)malloc(sizeof(struct __s));
     ptr->data = data;
     //ptr->next = (uintptr_t)0;
     atomic_init(&ptr->next, 0);
@@ -432,43 +385,7 @@ void enqueue(struct ev_queue_s * q_ptr,void * data)
     //EV_DBGP("OLD Tail = [%lX] CURR Tail = [%lX] HEAD = [%lX]\n", old_tail, q_ptr->tail, q_ptr->head);
 
     if (old_tail) {
-        /* Detector code  BEGIN { */
-        {
-        struct __s *t = (struct __s*)old_tail;
-        uint64_t m = atomic_load(&t->magic);
-
-        // Claim exclusive right to link through this node
-        int expected = 0;
-        if (!atomic_compare_exchange_strong_explicit(&t->inflight, &expected, 1,
-                                                    memory_order_acq_rel, memory_order_acquire)) {
-            EV_DBGP("EVQ DETECT: producer failed to claim inflight old_tail=%p id=%lu expected0 got=%d magic=%lx\n",
-                    t, (unsigned long)atomic_load(&t->id), expected,
-                    (unsigned long)atomic_load(&t->magic));
-            abort();
-        }
-
-        // Re-check after claiming (catches “consumer poisoned then we claimed”)
-        m = atomic_load_explicit(&t->magic, memory_order_acquire);
-        if (m != EVQ_MAGIC_LIVE) {
-            EV_DBGP("EVQ DETECT: producer claimed inflight on non-live node old_tail=%p id=%lu magic=%lx\n",
-                    t, (unsigned long)atomic_load(&t->id), (unsigned long)m);
-            abort();
-        }
-
-
-        }
-        /* Detector code END } */
-
-        //EV_DBG();
-
-        /*  Uncomment this when detector is removed
         atomic_store(&((struct __s*)old_tail)->inflight, 1);
-
-        */
-
-        /* Detector change BEGIN { */
-
-        /* Detector change END } */
         struct __s *t = (struct __s*)old_tail;
         uint64_t m = atomic_load(&t->magic);
         if (m != EVQ_MAGIC_LIVE) {
