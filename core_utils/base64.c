@@ -5,10 +5,6 @@
 
 #include <base64.h>
 
-void free_binary_data(unsigned char *data);
-size_t binary_data_len(unsigned char *data);
-void * alloc_binary_data_memory(size_t size);
-
 static unsigned char encoding_table[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
 								'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
 								'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
@@ -144,7 +140,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 	size_t estimated_output_length = 0;
 
 	estimated_output_length = ((input_length / 4) * 3);
-	decoded_data = alloc_binary_data_memory(estimated_output_length);
+	decoded_data = malloc(estimated_output_length);
 	if (decoded_data == NULL) return NULL;
 
 	*output_length = 0;
@@ -168,7 +164,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 		sextet = 0;
 		sextet = decoding_table[ch];
 		if (sextet == 0xFF) {
-			free_binary_data(decoded_data);
+			free(decoded_data);
 			return NULL;
 		}
 
@@ -176,7 +172,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 			case 0:
 				if (decoded_data) {
 					if ((size_t)out_index >= estimated_output_length) {
-						free_binary_data(decoded_data);
+						free(decoded_data);
 						return NULL;
 					}
 					decoded_data[out_index] = sextet << 2;
@@ -186,7 +182,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 			case 1:
 				if (decoded_data) {
 					if ((size_t)out_index + 1 >= estimated_output_length) {
-						free_binary_data(decoded_data);
+						free(decoded_data);
 						return NULL;
 					}
 					decoded_data[out_index] |= sextet >> 4;
@@ -198,7 +194,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 			case 2:
 				if (decoded_data) {
 					if ((size_t)out_index + 1 >= estimated_output_length) {
-						free_binary_data(decoded_data);
+						free(decoded_data);
 						return NULL;
 					}
 					decoded_data[out_index] |= sextet >> 2;
@@ -210,7 +206,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 			case 3:
 				if (decoded_data) {
 					if ((size_t)out_index >= estimated_output_length) {
-						free_binary_data(decoded_data);
+						free(decoded_data);
 						return NULL;
 					}
 					decoded_data[out_index] |= sextet;
@@ -219,7 +215,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 				state = 0;
 				break;
 			default:
-				free_binary_data(decoded_data);
+				free(decoded_data);
 				return NULL;
 		}
 	}
@@ -236,7 +232,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 		switch (state) {
 			case 0: /* Invalid = in first position */
 			case 1: /* Invalid = in second position */
-				free_binary_data(decoded_data);
+				free(decoded_data);
 				return NULL;
 
 			case 2: /* Valid, means one byte of info */
@@ -247,7 +243,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 				}
 				/* Make sure there is another trailing = sign. */
 				if (ch != BASE64_PAD) {
-					free_binary_data(decoded_data);
+					free(decoded_data);
 					return NULL;
 				}
 				ch = data[i++]; /* Skip the = */
@@ -261,7 +257,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 						*/
 				for ((void)NULL; ((ch != '\0')&&(i<input_length)); ch = data[i++]) {
 					if (!ISSPACE(ch) && (ch != 0)) {
-						free_binary_data(decoded_data);
+						free(decoded_data);
 						return NULL;
 					}
 				}
@@ -273,7 +269,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 				* subliminal channel.
 				*/
 				if (decoded_data && decoded_data[out_index] != 0) {
-					free_binary_data(decoded_data);
+					free(decoded_data);
 					return NULL;
 				}
 		}
@@ -284,7 +280,7 @@ unsigned char *base64_decode(const unsigned char *data, size_t input_length, siz
 		* have no partial bytes lying around.
 		*/
 		if (state != 0) {
-			free_binary_data(decoded_data);
+			free(decoded_data);
 			return NULL;
 		}
 	}

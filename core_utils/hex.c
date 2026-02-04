@@ -3,10 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-void free_binary_data(unsigned char *data);
-size_t binary_data_len(unsigned char *data);
-void * alloc_binary_data_memory(size_t size);
-
 static unsigned char encoding_table[] = {	'0', '1', '2', '3',
 											'4', '5', '6', '7',
 											'8', '9', 'A', 'B',
@@ -88,7 +84,8 @@ unsigned char *hex_decode(const unsigned char *data, size_t input_length, size_t
 	if (input_length % 2) { return NULL; } // There must be even number of bytes in a hex string
 	*output_length = input_length / 2;
 
-	unsigned char * decoded_data = alloc_binary_data_memory(*output_length);
+	//unsigned char * decoded_data = alloc_binary_data_memory(*output_length);
+	unsigned char * decoded_data = malloc(*output_length);
 	if (decoded_data == NULL) { return NULL; }
 
 	unsigned char one = 0;
@@ -97,7 +94,7 @@ unsigned char *hex_decode(const unsigned char *data, size_t input_length, size_t
 		one = data[j++];
 		two = data[j++];
 		if (decoding_table[one] == 0xFF || decoding_table[two] == 0xFF) {
-			free_binary_data(decoded_data);
+			free(decoded_data);
 			return NULL;
 		}
 		decoded_data[i] = (decoding_table[one] << 4) | (decoding_table[two]);
