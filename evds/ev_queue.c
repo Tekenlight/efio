@@ -214,7 +214,10 @@ int try_dequeue(struct ev_queue_s * q_ptr , void ** retptrptr)
         uintptr_t oold_h = old_h;
         flg = atomic_compare_exchange_strong_explicit(&(q_ptr->head),&oold_h,new_h,memory_order_seq_cst,memory_order_seq_cst);
         if (!flg) {
-            //EV_ABORT("");
+            uintptr_t now_h = oold_h;
+            EV_DBGP("CAS(head) failed: expected=%p actual=%p new=%p\n",
+                    (void*)old_h, (void*)now_h, (void*)new_h);
+            abort();
         }
     }
     atomic_thread_fence(memory_order_acquire);
@@ -223,7 +226,9 @@ int try_dequeue(struct ev_queue_s * q_ptr , void ** retptrptr)
     // Now old_h has what we want.
     data = ((struct __s *)old_h)->data;
     free(((struct __s *)old_h));
+
     *retptrptr = data;
+
     return 0;
 }
 
@@ -301,13 +306,11 @@ void * dequeue(struct ev_queue_s * q_ptr)
     if (!(1&old_h))
         old_h = (1|old_h);
 
-    //EV_DBGP("Tail = [%X] HEAD = [%X]\n", atomic_load(&q_ptr->tail), atomic_load(&q_ptr->head));
-
     {
         uintptr_t oold_h = old_h;
         flg = atomic_compare_exchange_strong_explicit(&(q_ptr->head),&oold_h,new_h,memory_order_seq_cst,memory_order_seq_cst);
         if (!flg) {
-            // Is this really possible, let's leave a Harakiri here.
+            // Since this impossible, let's leave a Harakiri here.
             //
             uintptr_t now_h = oold_h;
             EV_DBGP("CAS(head) failed: expected=%p actual=%p new=%p\n",
@@ -371,18 +374,13 @@ void enqueue(struct ev_queue_s * q_ptr,void * data)
 
     ptr = (struct __s*)malloc(sizeof(struct __s));
     ptr->data = data;
-    //ptr->next = (uintptr_t)0;
     atomic_init(&ptr->next, 0);
     atomic_init(&ptr->inflight, 0);
     atomic_init(&ptr->id, atomic_fetch_add(&gid, 1));
     atomic_store(&ptr->magic, EVQ_MAGIC_LIVE);
 
-    //EV_DBGP("MALLOC node=%p id=%lu\n", (void*)ptr, (unsigned long)atomic_load(&ptr->id));
-
-    //EV_DBGP("CURR Tail = [%lX] HEAD = [%lX]\n", q_ptr->tail, q_ptr->head);
     old_tail = atomic_exchange_explicit(&(q_ptr->tail),(uintptr_t)ptr,memory_order_seq_cst);
     atomic_fetch_add(&(q_ptr->e_count), 1);
-    //EV_DBGP("OLD Tail = [%lX] CURR Tail = [%lX] HEAD = [%lX]\n", old_tail, q_ptr->tail, q_ptr->head);
 
     if (old_tail) {
         atomic_store(&((struct __s*)old_tail)->inflight, 1);
@@ -398,7 +396,6 @@ void enqueue(struct ev_queue_s * q_ptr,void * data)
         atomic_store(&((struct __s*)old_tail)->inflight, 0);
     }
     else {
-        //EV_DBG();
         atomic_exchange_explicit(&(q_ptr->head),(uintptr_t)ptr,memory_order_acq_rel);
     }
 
